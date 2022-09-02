@@ -1,0 +1,178 @@
+Ident  = #Delft3D-FLOW 3.56.29165#
+Commnt =                  
+Runtxt = #Hydrodynamic model#
+         #No Rivers#
+         #Simulation for Meteolakes#
+Filcco = #greifen_grid.grd#
+Anglat =  4.7350000e+001
+Grdang =  0.0000000e+000
+Filgrd = #greifen_grid.enc#
+DenFrm = #UNESCO#
+MNKmax = 28 109 50
+Thick  =  1.6700000e+000
+          2.4900000e+000
+          3.3300000e+000
+          3.3300000e+000
+          3.3300000e+000
+          3.2700000e+000
+          3.1500000e+000
+          3.0900000e+000
+          3.0300000e+000
+          2.9700000e+000
+          2.9100000e+000
+          2.8500000e+000
+          2.7900000e+000
+          2.7300000e+000
+          2.6700000e+000
+          2.6100000e+000
+          2.5400000e+000
+          2.4800000e+000
+          2.4200000e+000
+          2.3600000e+000
+          2.3400000e+000
+          2.3000000e+000
+          2.2400000e+000
+          2.1800000e+000
+          2.1200000e+000
+          2.0600000e+000
+          2.0000000e+000
+          1.9400000e+000
+          1.8800000e+000
+          1.8200000e+000
+          1.7600000e+000
+          1.7000000e+000
+          1.6400000e+000
+          1.5800000e+000
+          1.5100000e+000
+          1.4500000e+000
+          1.3900000e+000
+          1.3300000e+000
+          1.2700000e+000
+          1.2100000e+000
+          1.1500000e+000
+          1.0300000e+000
+          9.7000000e-001
+          9.1000000e-001
+          8.5000000e-001
+          6.7000000e-001
+          6.7000000e-001
+          6.7000000e-001
+          6.7000000e-001
+          6.7000000e-001
+Commnt =                  
+Fildep = #greifen_grid_inverse.dep#
+Commnt =                  
+Commnt =                 no. dry points: 0
+Commnt =                 no. thin dams: 0
+Commnt =                  
+Itdate = #2008-03-01#
+Tunit  = #M#
+Tstart =  7.4908800e+006
+Tstop  =  7.4988000e+006
+Dt     = 0.5
+Tzone  = 0
+Commnt =                  
+Sub1   = # TW #
+Sub2   = #   #
+Commnt =                  
+Wnsvwp = #Y#
+Wndint = #Y#
+Commnt =                  
+Commnt =                 initial conditions from restart file
+Restid =  #Simulation_Web_rst.000000#
+Commnt =                  
+Commnt =                 no. open boundaries: 0
+Commnt =                  
+Ag     =  9.8100000e+000
+Rhow   =  1.0000000e+003
+Tempw  =  1.5000000e+001
+Salw   =  1.0000000e+000
+Wstres =  1.6000000e-002  5.0000000e-001  1.8000000e-003  4.0000000e+000  9.0000000e-003  1.0000000e+002
+Rhoa   =  1.2400000e+000
+Betac  =  5.0000000e-001
+Equili = #N#
+Tkemod = #K-epsilon   #
+Ktemp  = 5
+Fclou  =  0.0000000e+000
+Sarea  =  0.0000000e+000
+Secchi =  1.0000000e+000
+Stantn =  4.0000000e-003
+Dalton =  2.0000000e-003
+Solrad = #N#
+Temint = #Y#
+Commnt =                  
+Roumet = #C#
+Ccofu  =  6.0000000e+001
+Ccofv  =  6.0000000e+001
+Xlo    =  0.0000000e+000
+Vicouv =  3.0000000e+000
+Dicouv =  0.0000000e+000
+Htur2d = #Y#
+Htural =  1.6666660e+000
+Hturnd = 2
+Hturst =  7.0000000e-001
+Hturlp =  3.3333330e-001
+Hturrt = -1.0000000e+000
+Hturdm =  0.0000000e+000
+Hturel = #Y#
+Vicoww =  1.0000000e-005
+Dicoww =  5.0000000e-007
+Irov   = 0
+Commnt =                  
+Iter   =      2
+Dryflp = #YES#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =  1.0000000e-001
+Dco    = -9.9900000e+002
+Tlfsmo =  6.0000000e+001
+ThetQH =  0.0000000e+000
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #van Leer-2   #
+Momsol = #Cyclic#
+Commnt =                  
+Commnt =                 no. discharges: 0
+Commnt =                 no. observation points: 2
+Filsta = #Observation_points.obs#
+Commnt =                 no. drogues: 0
+Commnt =                  
+Commnt =                  
+Commnt =                 no. cross sections: 0
+Commnt =                  
+SMhydr = #YYYYY#     
+SMderv = #YYYYYY#    
+SMproc = #YYYYYYYYYY#
+PMhydr = #NNNNNN#    
+PMderv = #NNN#       
+PMproc = #NNNNNNNNNN#
+SHhydr = #YYYY#      
+SHderv = #YYYYY#     
+SHproc = #YYYYYYYYYY#
+SHflux = #YYYY#      
+PHhydr = #NNNNNN#    
+PHderv = #NNN#       
+PHproc = #NNNNNNNNNN#
+PHflux = #NNNN#      
+Prhis  =  3.0700800e+006 0  3.5956800e+006
+Flmap  =  7.4908800e+006 180  7.4988000e+006
+Flhis  =  7.4908800e+006 180  7.4988000e+006
+Flpp   =  4.6483200e+006 0  4.8758400e+006
+Flrst  = 10080
+Commnt =                  
+Online = #N#
+Anglon = 8.7
+Filwp  = #Pressure.amp#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Zmodel = #Y#
+Zbot   = -30.21
+Ztop   = +1
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+Filws  = #ShortwaveFlux.ams#
+Commnt =
+ncFormat = 4
+FlNcdf = #map#

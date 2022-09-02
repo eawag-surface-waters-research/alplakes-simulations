@@ -1,0 +1,204 @@
+Ident  = #Delft3D-FLOW 3.56.29165#
+Commnt =                  
+Runtxt = #Lake Zurich (both basins)#
+         #Meteolakes#
+         #2019 implementation#
+Filcco = #grid_180x200.grd#
+Anglat =  4.7220000e+001
+Grdang =  0.0000000e+000
+Filgrd = #grid_180x200.enc#
+MNKmax = 212 34 75
+Thick  =  7.2992701e-001
+          3.6496350e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          7.2992701e+000
+          3.6496350e+000
+          3.6496350e+000
+          2.9197080e+000
+          7.2992701e-001
+          3.6496350e+000
+          1.4598540e+000
+          1.4598540e+000
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          3.6496350e-001
+          3.6496350e-001
+          3.6496350e-001
+          3.6496350e-001
+          3.6496350e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          1.8248175e-001
+          3.6496350e-001
+          3.6496350e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          7.2992701e-001
+          3.6496350e-001
+          3.6496350e-001
+          7.2992701e-001
+          1.4598540e-001
+          2.1897810e-001
+          2.1897810e-001
+          7.2992701e-002
+          8.0291971e-002
+          7.2262774e-001
+Commnt =                  
+Fildep = #LZ_180.dep#
+Commnt =                  
+Commnt =                 no. dry points: 16
+Fildry = #dry180.dry#
+Commnt =                 no. thin dams: 0
+Commnt =                  
+Itdate = #2008-03-01#
+Tunit  = #M#
+Tstart =  7.4908800e+006
+Tstop  =  7.4988000e+006
+Dt     = 0.5
+Tzone  = 0
+Commnt =                  
+Sub1   = # TW #
+Sub2   = #   #
+Commnt =                  
+Wnsvwp = #Y#
+Wndint = #Y#
+Commnt =                  
+Commnt =                 initial conditions from restart file
+Restid =  #Simulation_Web_rst.000000#
+Commnt =                  
+Commnt =                 no. open boundaries: 0
+Commnt =                  
+Ag     =  9.8100000e+000
+Rhow   =  1.0000000e+003
+Tempw  =  1.5000000e+001
+Salw   =  1.0000000e+000
+Wstres =  2.4733517e-003  1.0000000e-002  1.1000000e-003  5.0000000e+000  2.1000000e-003  2.5000000e+001
+Rhoa   =  1.2400000e+000
+Betac  =  5.0000000e-001
+Equili = #N#
+Tkemod = #K-epsilon   #
+Ktemp  = 5
+Fclou  =  0.0000000e+000
+Sarea  =  0.0000000e+000
+Secchi =  4.6100000e+000
+Stantn =  1.2000000e-003
+Dalton =  1.4000000e-003
+Solrad = #N#
+Temint = #Y#
+Commnt =                  
+Roumet = #Z#
+Ccofu  =  1.0000000e-002
+Ccofv  =  1.0000000e-002
+Xlo    =  0.0000000e+000
+Vicouv =  5.0000000e+000
+Dicouv =  5.0000000e+000
+Htur2d = #Y#
+Htural =  1.6666660e+000
+Hturnd = 2
+Hturst =  7.0000000e-001
+Hturlp =  3.3333330e-001
+Hturrt = -1.0000000e+000
+Hturdm =  0.0000000e+000
+Hturel = #Y#
+Vicoww =  0.0000000e+000
+Dicoww =  5.0000000e-007
+Irov   = 0
+Commnt =                  
+Iter   =      2
+Dryflp = #NO#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =  1.0000000e-001
+Dco    = -9.9900000e+002
+Tlfsmo =  6.0000000e+001
+ThetQH =  0.0000000e+000
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #Cyclic-method#
+Momsol = #Cyclic#
+Commnt =                  
+Commnt =                 no. discharges: 4
+Filsrc = #RiversOperations.src#
+Fildis = #RiversOperationsQuantities.dis#
+Commnt =                 no. observation points: 3
+Filsta = #Observations.obs#
+Commnt =                 no. drogues: 0
+Commnt =                  
+Commnt =                  
+Commnt =                 no. cross sections: 0
+Commnt =                  
+SMhydr = #YYYYY#     
+SMderv = #YYYYYY#    
+SMproc = #YYYYYYYYYY#
+PMhydr = #NNNNNN#    
+PMderv = #NNN#       
+PMproc = #NNNNNNNNNN#
+SHhydr = #YYYY#      
+SHderv = #YYYYY#     
+SHproc = #YYYYYYYYYY#
+SHflux = #YYYY#      
+PHhydr = #NNNNNN#    
+PHderv = #NNN#       
+PHproc = #NNNNNNNNNN#
+PHflux = #NNNN#      
+Flmap  =  7.4908800e+006 180  7.4988000e+006
+Flhis  =  7.4908800e+006 180  7.4988000e+006
+Flpp   =  5.5497600e+006 0  5.5497600e+006
+Flrst  = 10080
+Commnt =                  
+Online = #N#
+Anglon = 8.75
+Filwp  = #Pressure.amp#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Zmodel = #Y#
+Zbot   = -136
+Ztop   = +1
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+Filws  = #ShortwaveFlux.ams#
+Commnt =                  
+ncFormat = 4
+FlNcdf = #map#

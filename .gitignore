@@ -1,0 +1,5 @@
+.idea
+logs/*
+!logs/.gitkeep
+src/__pycache__/
+tests/output

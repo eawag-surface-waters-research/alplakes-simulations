@@ -1,0 +1,230 @@
+Ident  = #Delft3D-FLOW 3.56.29165#
+Commnt =                  
+Runtxt = #Bielersee#
+         #Based on Love's last model#
+         #No Rivers#
+         #Simulation for Meteolakes#
+Filcco = #grid1_RiverAdapted.grd#
+Anglat =  4.7070000e+001
+Grdang =  0.0000000e+000
+Filgrd = #grid1_RiverAdapted.enc#
+MNKmax = 132 28 100
+Thick  =  2.0600882e+000
+          1.7725029e+000
+          1.7564971e+000
+          1.7404912e+000
+          1.7244853e+000
+          1.7084794e+000
+          1.6924735e+000
+          1.6764677e+000
+          1.6604618e+000
+          1.6444559e+000
+          1.6284500e+000
+          1.6124441e+000
+          1.5964383e+000
+          1.5804324e+000
+          1.5644265e+000
+          1.5484206e+000
+          1.5324147e+000
+          1.5164089e+000
+          1.5004030e+000
+          1.4843971e+000
+          1.4683912e+000
+          1.4523853e+000
+          1.4363795e+000
+          1.4203736e+000
+          1.4043677e+000
+          1.3883618e+000
+          1.3723559e+000
+          1.3563501e+000
+          1.3403442e+000
+          1.3243383e+000
+          1.3083324e+000
+          1.2923265e+000
+          1.2763207e+000
+          1.2603148e+000
+          1.2443089e+000
+          1.2283030e+000
+          1.2122971e+000
+          1.1962913e+000
+          1.1802854e+000
+          1.1642795e+000
+          1.1482736e+000
+          1.1322677e+000
+          1.1162619e+000
+          1.1002560e+000
+          1.0842501e+000
+          1.0682442e+000
+          1.0522383e+000
+          1.0362325e+000
+          1.0202266e+000
+          1.0042207e+000
+          9.8821483e-001
+          9.7220895e-001
+          9.5620307e-001
+          9.4019719e-001
+          9.2419131e-001
+          9.0818543e-001
+          8.9217955e-001
+          8.7617367e-001
+          8.6016779e-001
+          8.4416191e-001
+          8.2815603e-001
+          8.1215015e-001
+          7.9614427e-001
+          7.8013839e-001
+          7.6413251e-001
+          7.4812663e-001
+          7.3212075e-001
+          7.1611487e-001
+          7.0010899e-001
+          6.8410311e-001
+          6.6809723e-001
+          6.5209135e-001
+          6.3608547e-001
+          6.2007959e-001
+          6.0407371e-001
+          5.8806783e-001
+          5.7206195e-001
+          5.5605607e-001
+          5.4005019e-001
+          5.2404431e-001
+          5.0803843e-001
+          4.9203255e-001
+          4.7602667e-001
+          4.6002079e-001
+          4.4401491e-001
+          4.2800903e-001
+          4.1200315e-001
+          3.9599727e-001
+          3.7999139e-001
+          3.6398551e-001
+          3.4797963e-001
+          3.3197375e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+          2.7327778e-001
+Commnt =                  
+Fildep = #MultiLidar_CorseGrid_Depth.dep#
+Commnt =                  
+Commnt =                 no. dry points: 0
+Commnt =                 no. thin dams: 6
+Filtd  = #HarbourBiel.thd#
+Commnt =                  
+Itdate = #2008-03-01#
+Tunit  = #M#
+Tstart =  7.4908800e+006
+Tstop  =  7.4988000e+006
+Dt     = 0.5
+Tzone  = 0
+Commnt =                  
+Sub1   = # TW #
+Sub2   = #   #
+Commnt =                  
+Wnsvwp = #Y#
+Wndint = #Y#
+Commnt =                  
+Commnt =                 initial conditions from restart file
+Restid =  #Simulation_Web_rst.000000#
+Commnt =                  
+Commnt =                 no. open boundaries: 0
+Commnt =                  
+Ag     =  9.8100000e+000
+Rhow   =  1.0000000e+003
+Tempw  =  1.5000000e+001
+Salw   =  0.0000000e+000
+Wstres =  1.6000000e-002  8.0000000e-002  1.8000000e-003  4.0000000e+000  4.1000000e-003  5.0000000e+001
+Rhoa   =  1.2400000e+000
+Betac  =  5.0000000e-001
+Equili = #N#
+Tkemod = #K-epsilon   #
+Ktemp  = 5
+Fclou  =  0.0000000e+000
+Sarea  =  3.9300000e+007
+Secchi =  3.0000000e+000
+Stantn =  5.0000000e-003
+Dalton =  2.0000000e-003
+Solrad = #N#
+Temint = #Y#
+Commnt =                  
+Roumet = #W#
+Ccofu  =  3.0000000e-002
+Ccofv  =  3.0000000e-002
+Xlo    =  0.0000000e+000
+Vicouv =  1.0000000e+000
+Dicouv =  1.0000000e+000
+Htur2d = #Y#
+Htural =  1.6666660e+000
+Hturnd = 2
+Hturst =  7.0000000e-001
+Hturlp =  3.3333330e-001
+Hturrt = -1.0000000e+000
+Hturdm =  1.0000000e-007
+Hturel = #Y#
+Vicoww =  1.0000000e-003
+Dicoww =  5.0000000e-006
+Irov   = 0
+Commnt =                  
+Iter   =      2
+Dryflp = #YES#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =  1.0000000e-001
+Dco    = -9.9900000e+002
+Tlfsmo =  6.0000000e+001
+ThetQH =  0.0000000e+000
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #van Leer-2   #
+Momsol = #Cyclic#
+Commnt =                  
+Commnt =                 no. discharges: 0
+Commnt =                 no. observation points: 10
+Filsta = #ObservationPoints.obs#
+Commnt =                 no. drogues: 0
+Commnt =                  
+Commnt =                  
+Commnt =                 no. cross sections: 7
+Filcrs = #csections.crs#
+Commnt =                  
+SMhydr = #YYYYY#     
+SMderv = #YYYYYY#    
+SMproc = #YYYYYYYYYY#
+PMhydr = #NNNNNN#    
+PMderv = #NNN#       
+PMproc = #NNNNNNNNNN#
+SHhydr = #YYYY#      
+SHderv = #YYYYY#     
+SHproc = #YYYYYYYYYY#
+SHflux = #YYYY#      
+PHhydr = #NNNNNN#    
+PHderv = #NNN#       
+PHproc = #NNNNNNNNNN#
+PHflux = #NNNN#      
+Flmap  =  7.4908800e+006 180  7.4988000e+006
+Flhis  =  7.4908800e+006 180  7.4988000e+006
+Flpp   =  4.6483200e+006 0  4.8758400e+006
+Flrst  = 10080
+Commnt =                  
+Online = #N#
+Zmodel = #Y#
+Zbot   = -75
+Ztop   = 0
+Anglon = 7.167
+HeaOut = #true#
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+Filws  = #ShortwaveFlux.ams#
+Filwp  = #Pressure.amp#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Commnt =
+ncFormat = 4
+FlNcdf = #map#

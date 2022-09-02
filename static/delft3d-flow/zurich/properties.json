@@ -1,0 +1,118 @@
+{
+  "grid": {"minx": 677600, "miny": 225663, "maxx": 719550, "maxy": 249912, "dx": 500, "dy": 500},
+  "inflows": [
+    {
+      "name": "Linth",
+      "id": 1,
+      "folder": "Linth",
+      "prefix": "BAFU2104_",
+      "flow": "Flow [m³/s]",
+      "min_flow": 12.8,
+      "temperature": "Temperature [°C]",
+      "a": [
+        2.346817694,
+        0.2915251337,
+        0.6697524519,
+        0.4184471982,
+        6.381858231,
+        -1.941244923,
+        1.29E-02,
+        0.9316269389
+      ],
+      "coordinates": [
+        47.132,9.088
+      ],
+      "cell": [
+        210,
+        22,
+        68
+      ],
+      "flow_velocity": 0.5,
+      "flow_direction": 280
+    },
+    {
+      "name": "Jona",
+      "id": 2,
+      "a": [
+        2.346817694,
+        0.2915251337,
+        0.6697524519,
+        0.4184471982,
+        6.381858231,
+        -1.941244923,
+        1.29E-02,
+        0.9316269389
+      ],
+      "contribution": 0.5,
+      "coordinates": [
+        47.217,8.845
+      ],
+      "cell": [
+        171,
+        19,
+        68
+      ],
+      "flow_velocity": 0.5,
+      "flow_direction": 180
+    },
+    {
+      "name": "Wagitaler",
+      "id": 3,
+      "a": [
+        2.346817694,
+        0.2915251337,
+        0.6697524519,
+        0.4184471982,
+        6.381858231,
+        -1.941244923,
+        1.29E-02,
+        0.9316269389
+      ],
+      "contribution": 0.5,
+      "coordinates": [
+        47.203,8.852
+      ],
+      "cell": [
+        175,
+        12,
+        68
+      ],
+      "flow_velocity": 0.5,
+      "flow_direction": 330
+    }
+  ],
+  "outflow": {
+    "name": "Limmat",
+    "id": 4,
+    "folder": "Limmat",
+    "prefix": "BAFU2099_",
+    "flow": "Flow [m³/s]",
+    "min_flow": 24,
+    "coordinates": [
+      47.368,8.543
+    ],
+    "cell": [
+      2,
+      18,
+      71
+    ]
+  },
+  "waterlevel": {
+    "folder": "Zurichsee",
+    "prefix": "BAFU2209_",
+    "level": "Level [m a.s.l.]"
+  },
+  "altitude": 406,
+  "bathymetry": {
+    "depth": [
+      0,
+      5,
+      50
+    ],
+    "area": [
+      88660000,
+      88660000,
+      88660000
+    ]
+  }
+}
