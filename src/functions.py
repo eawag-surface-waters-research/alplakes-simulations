@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 
-def parse_parameters(file):
+def verify_args(file):
     if not os.path.isfile(file):
         raise Exception("File doesn't exist: {}".format(file))
     if ".yaml" not in file:

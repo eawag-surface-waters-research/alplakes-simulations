@@ -2,4 +2,4 @@
 logs/*
 !logs/.gitkeep
 src/__pycache__/
-tests/output
+operational/output

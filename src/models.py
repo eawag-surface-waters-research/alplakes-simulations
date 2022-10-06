@@ -36,9 +36,9 @@ class Delft3D (object):
         self.load_properties()
         self.update_control_file()
         self.weather_data_files()
-        self.river_data_files()
-        self.run_simulation()
-        self.extract_simulation_results()
+        #self.river_data_files()
+        #self.run_simulation()
+        #self.extract_simulation_results()
 
     def copy_static_data(self):
         try:
