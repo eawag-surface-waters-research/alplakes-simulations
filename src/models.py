@@ -8,44 +8,74 @@ import subprocess
 from scipy.interpolate import griddata
 from datetime import datetime, timedelta
 from river import *
-from functions import log, list_local_cosmo_files, latlng_to_ch1900
+from functions import logger, list_local_cosmo_files, latlng_to_ch1900, download_file
 from distutils.dir_util import copy_tree
 
 
-class Delft3D (object):
-    def __init__(self, parameters):
-        self.parameters = parameters
+class Delft3D(object):
+    def __init__(self, params):
+        self.params = params
         self.properties = {}
-        self.static = "static/delft3d-flow"
+        self.simulation_dir = ""
+        self.restart_file = ""
         self.files = [
-                {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0},
-                {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0},
-                {"filename": 'RelativeHumidity.amr', "parameter": "RELHUM_2M", "quantity": "relative_humidity", "unit": "%", "adjust": 0},
-                {"filename": 'ShortwaveFlux.ams', "parameter": "GLOB", "quantity": "sw_radiation_flux", "unit": "W/m2", "adjust": 0},
-                {"filename": 'Temperature.amt', "parameter": "T_2M", "quantity": "air_temperature", "unit": "Celsius", "adjust": -273.15},
-                {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
-                {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
-            ]
-        self.log = log(parameters["log_name"], parameters["log_path"])
-        self.log.initialise("Initialising hydrodynamic simulation {} using {}".format(parameters["model"], parameters["setup"].replace("_", " ")))
-        self.log.log("Simulating from {} to {}".format(parameters["start_date"], parameters["end_date"]))
+            {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0},
+            {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0},
+            {"filename": 'RelativeHumidity.amr', "parameter": "RELHUM_2M", "quantity": "relative_humidity", "unit": "%",
+             "adjust": 0},
+            {"filename": 'ShortwaveFlux.ams', "parameter": "GLOB", "quantity": "sw_radiation_flux", "unit": "W/m2",
+             "adjust": 0},
+            {"filename": 'Temperature.amt', "parameter": "T_2M", "quantity": "air_temperature", "unit": "Celsius",
+             "adjust": -273.15},
+            {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
+            {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
+        ]
+        log_name = "{}_{}_{}_{}.txt".format(params["model"].replace("/", "_"),
+                                            params["start"],
+                                            params["end"],
+                                            datetime.now().strftime("_%Y%m%d_%H%M%S"))
+        self.log = logger(log_name, write=params["log"])
+        self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
+        self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
 
     def process(self):
+        self.initialise_simulation_directory()
         self.copy_static_data()
         self.collect_restart_file()
         self.load_properties()
-        self.update_control_file()
-        self.weather_data_files()
-        #self.river_data_files()
-        #self.run_simulation()
-        #self.extract_simulation_results()
+        # self.update_control_file()
+        # self.weather_data_files()
+        # self.river_data_files()
+        # self.run_simulation()
+        # self.extract_simulation_results()
+
+    def initialise_simulation_directory(self):
+        try:
+            stage = self.log.begin_stage("Initialising simulation directory.")
+            self.simulation_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                               "../runs",
+                                               "{}_{}_{}_{}".format(self.params["docker"].replace("/", "_"),
+                                                                    self.params["model"].replace("/", "_"),
+                                                                    self.params["start"].strftime("%Y%m%d"),
+                                                                    self.params["end"].strftime("%Y%m%d")))
+            self.log.info("Simulation directory: {}".format(self.simulation_dir), indent=1)
+            if os.path.isdir(self.simulation_dir):
+                self.log.info("Removing existing simulation simulation directory.", indent=1)
+                shutil.rmtree(self.simulation_dir)
+            os.mkdir(self.simulation_dir)
+            self.log.end_stage(stage)
+        except Exception as e:
+            self.log.error(stage)
+            raise
 
     def copy_static_data(self):
         try:
             stage = self.log.begin_stage("Copying static data to simulation folder.")
-            files = copy_tree(os.path.join(self.static, self.parameters["model"]), self.parameters["simulation_folder"])
+            parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+            static = os.path.join(parent_dir, "static", self.params["model"])
+            files = copy_tree(static, self.simulation_dir)
             for file in files:
-                self.log.log("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
+                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
             self.log.end_stage(stage)
         except Exception as e:
             self.log.error(stage)
@@ -54,31 +84,29 @@ class Delft3D (object):
     def collect_restart_file(self):
         try:
             stage = self.log.begin_stage("Collecting restart file.")
-            file, start_date = self.collect_restart_file_local_storage()
-            if start_date != self.parameters["start_date"]:
-                self.parameters["start_date"] = start_date
-                self.log.warning("Start date adjusted to {} to match restart file.".format(start_date), indent=1)
-            self.log.log("Copying restart file to simulation folder.", indent=1)
-            shutil.copyfile(file, os.path.join(self.parameters["simulation_folder"], "tri-rst.Simulation_Web_rst.000000"))
+            self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
+            components = self.params["model"].split("/")
+            if self.params["files"]:
+                self.log.info("Copying restart file from local storage.", indent=1)
+                file = os.path.join(self.params["files"], "simulations", components[0], "restart-files", components[1], self.restart_file)
+                if os.path.isfile(file):
+                    shutil.copyfile(file, os.path.join(self.simulation_dir, self.restart_file))
+                else:
+                    raise ValueError("Unable to locate restart file: ".format(file))
+            else:
+                self.log.info("Downloading restart file from remote storage.", indent=1)
+                file = os.path.join(self.params["upload"], "simulations", components[0], "restart-files", components[1], self.restart_file)
+                self.log.info("File location: {}".format(file), indent=2)
+                download_file(file, os.path.join(self.simulation_dir, self.restart_file))
             self.log.end_stage(stage)
         except Exception as e:
             self.log.error(stage)
             raise
 
-    def collect_restart_file_local_storage(self):
-        self.log.log("Collecting restart file from local storage.", indent=1)
-        files = os.listdir(self.parameters["restart_files"])
-        files.sort()
-        dates = [self.parameters["start_date"].timestamp() - datetime.strptime(x.split(".")[-2], '%Y%m%d').timestamp() for x in files]
-        dates = [x for x in dates if x > 0]
-        file = files[dates.index(min(dates))]
-        date = datetime.strptime(file.split(".")[-2], '%Y%m%d')
-        return os.path.join(self.parameters["restart_files"], file), date
-
     def load_properties(self):
         try:
             stage = self.log.begin_stage("Loading properties.")
-            with open(os.path.join(self.parameters["simulation_folder"], "properties.json"), 'r') as f:
+            with open(os.path.join(self.simulation_dir, "properties.json"), 'r') as f:
                 self.properties = json.load(f)
             self.log.end_stage(stage)
         except Exception as e:
@@ -88,7 +116,7 @@ class Delft3D (object):
     def update_control_file(self, origin=datetime(2008, 3, 1), period=180):
         try:
             stage = self.log.begin_stage("Updating control file dates.")
-            self.log.log("Reading simulation file.", indent=1)
+            self.log.info("Reading simulation file.", indent=1)
             with open(os.path.join(self.parameters["simulation_folder"], "Simulation_Web.mdf"), 'r') as f:
                 lines = f.readlines()
             start = "{:.7e}".format((self.parameters["start_date"] - origin).total_seconds() / 60)
@@ -102,7 +130,7 @@ class Delft3D (object):
                 if lines[i].split(" ")[0] in ["Flmap", "Flhis", "Flwq"]:
                     lines[i] = "{} = {} {} {}\n".format(lines[i].split(" ")[0], start, str(period), end)
 
-            self.log.log("Writing new dates to simulation file.", indent=1)
+            self.log.info("Writing new dates to simulation file.", indent=1)
             with open(os.path.join(self.parameters["simulation_folder"], "Simulation_Web.mdf"), 'w') as f:
                 f.writelines(lines)
             self.log.end_stage(stage)
@@ -120,16 +148,17 @@ class Delft3D (object):
             raise
 
     def create_weather_data_local_storage(self, origin=datetime(2008, 3, 1)):
-        self.log.log("Creating weather data files from local storage.", indent=1)
-        files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"], self.parameters["end_date"])
-        self.log.log("Located {} local meteo files covering the full simulation period.".format(len(files)), indent=2)
-        self.log.log("Read latitude and longitude", indent=2)
+        self.log.info("Creating weather data files from local storage.", indent=1)
+        files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"],
+                                       self.parameters["end_date"])
+        self.log.info("Located {} local meteo files covering the full simulation period.".format(len(files)), indent=2)
+        self.log.info("Read latitude and longitude", indent=2)
         nc = netCDF4.Dataset(files[0], mode='r', format='NETCDF4_CLASSIC')
         lat = nc.variables["lat_1"][:]
         lon = nc.variables["lon_1"][:]
         nc.close()
 
-        self.log.log("Reduce size of MeteoSwiss dataset", indent=2)
+        self.log.info("Reduce size of MeteoSwiss dataset", indent=2)
         grid = self.properties["grid"]
         mx, my = latlng_to_ch1900(lat, lon)
         mxx, myy = mx.flatten(), my.flatten()
@@ -139,12 +168,12 @@ class Delft3D (object):
         ind = np.where(mask)
         mxxx, myyy = mxx[ind], myy[ind]
 
-        self.log.log("Creating the grid", indent=2)
+        self.log.info("Creating the grid", indent=2)
         gx = np.arange(grid["minx"], grid["maxx"] + grid["dx"], grid["dx"])
         gy = np.arange(grid["miny"], grid["maxy"] + grid["dy"], grid["dy"])
         gxx, gyy = np.meshgrid(gx, gy)
 
-        self.log.log("Create the output meteo files and write the header", indent=2)
+        self.log.info("Create the output meteo files and write the header", indent=2)
         write_files = []
         for i in range(len(self.files)):
             f = open(os.path.join(self.parameters["simulation_folder"], self.files[i]["filename"]), "w")
@@ -163,13 +192,13 @@ class Delft3D (object):
             f.write('\nunit1 = ' + self.files[i]["unit"] + '\n')
             write_files.append(f)
 
-        self.log.log("Extracting data from files.", indent=2)
+        self.log.info("Extracting data from files.", indent=2)
         for file in files:
-            self.log.log("Processing file " + file, indent=3)
+            self.log.info("Processing file " + file, indent=3)
             nc = netCDF4.Dataset(file, mode='r', format='NETCDF4_CLASSIC')
             date = datetime.strptime(file.split(".")[-2].split("_")[-1], '%Y%m%d')
             for i in range(len(self.files)):
-                self.log.log("Processing parameter " + self.files[i]["parameter"], indent=4)
+                self.log.info("Processing parameter " + self.files[i]["parameter"], indent=4)
                 var = nc.variables[self.files[i]["parameter"]][:]
                 var = var + self.files[i]["adjust"]
                 nDims = len(nc.variables[self.files[i]["parameter"]].dimensions)
@@ -186,7 +215,8 @@ class Delft3D (object):
                         data = var[j, 0, :, :]
                     else:
                         raise ValueError(
-                            "Incorrect number of dimensions for variable " + self.files[i]["parameter"] + " in file " + file)
+                            "Incorrect number of dimensions for variable " + self.files[i][
+                                "parameter"] + " in file " + file)
                     grid_interp = griddata((mxxx, myyy), data.flatten()[ind], (gxx, gyy))
                     grid_interp[np.isnan(grid_interp)] = -999.00
                     write_files[i].write("\n")
@@ -200,7 +230,7 @@ class Delft3D (object):
         try:
             stage = self.log.begin_stage("Creating river data files.")
             if "inflows" not in self.properties:
-                self.log.warning("No river inputs specified, skipping stage.", indent=1)
+                self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
                 self.create_river_data_local_storage()
             self.log.end_stage(stage)
@@ -209,26 +239,28 @@ class Delft3D (object):
             raise
 
     def create_river_data_local_storage(self):
-        self.log.log("Creating weather data files from local storage.", indent=1)
-        self.log.log("Collecting river data.", indent=2)
-        self.properties = get_raw_river_data(self.properties, self.parameters["river_data"], self.parameters["start_date"], self.parameters["end_date"])
-        self.log.log("Cleaning raw river data.", indent=2)
-        self.properties = clean_raw_river_data(self.properties, self.parameters["start_date"], self.parameters["end_date"])
-        self.log.log("Flow balance ungauged rivers.", indent=2)
+        self.log.info("Creating weather data files from local storage.", indent=1)
+        self.log.info("Collecting river data.", indent=2)
+        self.properties = get_raw_river_data(self.properties, self.parameters["river_data"],
+                                             self.parameters["start_date"], self.parameters["end_date"])
+        self.log.info("Cleaning raw river data.", indent=2)
+        self.properties = clean_raw_river_data(self.properties, self.parameters["start_date"],
+                                               self.parameters["end_date"])
+        self.log.info("Flow balance ungauged rivers.", indent=2)
         self.properties = flow_balance_ungauged_rivers(self.properties)
-        self.log.log("Estimate flow temperatures using meteoswiss data.", indent=2)
+        self.log.info("Estimate flow temperatures using meteoswiss data.", indent=2)
         files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"],
                                        self.parameters["end_date"])
-        self.log.log("Located {} local meteo files covering the full simulation period.".format(len(files)), indent=3)
+        self.log.info("Located {} local meteo files covering the full simulation period.".format(len(files)), indent=3)
         self.properties = estimate_flow_temperature(self.properties, files, self.parameters["start_date"])
         verify_flow_balance(self.properties)
-        self.log.log("Writing data to file.", indent=2)
+        self.log.info("Writing data to file.", indent=2)
         write_river_data_to_file(self.properties, self.parameters["simulation_folder"])
 
     def run_simulation(self):
         try:
             stage = self.log.begin_stage("Running simulation.")
-            self.log.log("Running simulation as a subprocess.", indent=1)
+            self.log.info("Running simulation as a subprocess.", indent=1)
             print("-v {}:/job".format(self.parameters["simulation_folder"]))
             process = subprocess.Popen(["docker", "run", "-v", "{}:/job".format(self.parameters["simulation_folder"]),
                                         self.docker],
@@ -257,7 +289,7 @@ class Delft3D (object):
             raise
 
     def extract_local_netcdf(self):
-        self.log.log("Extracting simulation results to local NetCDF library.", indent=1)
+        self.log.info("Extracting simulation results to local NetCDF library.", indent=1)
         os.makedirs(self.parameters["output_files"], exist_ok=True)
         out_nc = os.path.join(self.parameters["simulation_folder"], "trim-Simulation_Web.nc")
         if os.path.isfile(out_nc):
@@ -270,16 +302,15 @@ class Delft3D (object):
                 "Output NetCDF file not found, the simulation may have failed or you need to use a newer version of Delft3D.")
 
 
-class Delft3D_501002163(Delft3D):
+class delft3d_flow_501002163(Delft3D):
     def __init__(self, *args, **kwargs):
-        super(Delft3D_501002163, self).__init__(*args, **kwargs)
+        super(delft3d_flow_501002163, self).__init__(*args, **kwargs)
         self.version = "5.01.00.2163"
-        self.static = "static/delft3d-flow"
         self.docker = "eawag/delft3d-flow:5.01.00.2163"
 
 
-class Delft3D_6030062434(Delft3D):
+class delft3d_flow_6030062434(Delft3D):
     def __init__(self, *args, **kwargs):
-        super(Delft3D_6030062434, self).__init__(*args, **kwargs)
+        super(delft3d_flow_6030062434, self).__init__(*args, **kwargs)
         self.version = "6.03.00.62434"
         self.docker = "eawag/delft3d-flow:6.03.00.62434"

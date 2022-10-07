@@ -1,133 +1,169 @@
 import os
-import yaml
+import shutil
 import traceback
 import numpy as np
 import pandas as pd
+from requests import get
 from datetime import datetime, timedelta
+from distutils.dir_util import copy_tree
 
 
-def verify_args(file):
-    if not os.path.isfile(file):
-        raise Exception("File doesn't exist: {}".format(file))
-    if ".yaml" not in file:
-        raise Exception("File must be a .yaml file.")
+def download_file(url, file_name):
+    # open in binary mode
+    with open(file_name, "wb") as file:
+        # get request
+        response = get(url)
+        if response.status_code != 200:
+            raise ValueError("Unable to download file, HTTP error code {}".format(response.status_code))
+        # write to file
+        file.write(response.content)
 
-    required = [{"name": "start_date", "default": False, "type": valid_date},
-                {"name": "end_date", "default": False, "type": valid_date},
-                {"name": "model", "default": False, "type": valid_string},
-                {"name": "log_name", "default": "log", "type": valid_string},
-                {"name": "log_path", "default": "", "type": valid_path},
-                {"name": "setup", "default": False, "type": valid_string},
-                {"name": "simulation_folder", "default": False, "type": valid_path},
-                {"name": "weather_data", "default": False, "type": valid_path},
-                {"name": "restart_files", "default": False, "type": valid_path},
-                ]
-    try:
-        with open(file, "r") as f:
-            parameters = yaml.load(f, Loader=yaml.FullLoader)
-    except Exception as e:
-        print(e)
-        raise Exception("Failed to parse input yaml file.")
+def verify_args(args):
+    checks = [{"name": "model", "type": valid_model},
+              {"name": "start", "type": valid_date},
+              {"name": "end", "type": valid_date, "default": False},
+              {"name": "upload", "type": valid_bucket, "default": False},
+              {"name": "run", "type": valid_bool, "default": False},
+              {"name": "files", "type": valid_path, "default": False},
+              {"name": "log", "type": valid_path, "default": False},
+              ]
 
-    for i in range(len(required)):
-        key = required[i]["name"]
-        parameters[key] = required[i]["type"](key, parameters, required[i]["default"])
+    for i in range(len(checks)):
+        args[checks[i]["name"]] = checks[i]["type"](checks[i], args)
 
-    return parameters
+    return args
 
 
-def valid_date(key, parameters, default):
-    if key not in parameters:
-        if default == False:
-            raise Exception("A valid key: {} format YYYYMMDD must be provided.".format(key))
+def valid_date(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
         else:
-            return default
-    try:
-        return datetime.strptime(parameters[key], '%Y%m%d')
-    except:
-        raise Exception("A valid key: {} format YYYYMMDD must be provided.".format(key))
-
-
-def valid_string(key, parameters, default):
-    if key not in parameters:
-        if default == False:
-            raise Exception("A valid key: {} format string must be provided.".format(key))
-        else:
-            return default
-    if isinstance(parameters[key], str):
-        return parameters[key]
+            raise Exception("A valid key: {} format YYYYMMDD must be provided.".format(check["name"]))
     else:
-        raise Exception("A valid key: {} format string must be provided.".format(key))
+        try:
+            return datetime.strptime(args[check["name"]], '%Y%m%d')
+        except:
+            raise Exception("A valid key: {} format YYYYMMDD must be provided.".format(check["name"]))
 
 
-def valid_path(key, parameters, default):
-    if key not in parameters:
-        if default == False:
-            raise Exception("A valid key: {} format path must be provided.".format(key))
+def valid_model(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
         else:
-            return default
-    if os.path.isdir(parameters[key]):
-        return parameters[key]
+            raise Exception('A valid key: {} format "software/model-name" must be provided.'.format(check["name"]))
     else:
-        raise Exception("A valid key: {} format path must be provided.".format(key))
+        if os.path.isdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../static", args[check["name"]])):
+            return args[check["name"]]
+        else:
+            raise Exception('A valid key: {} format "software/model-name" must be provided.'.format(check["name"]))
+
+
+def valid_bool(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
+        else:
+            raise Exception("A valid key: {} format boolean must be provided.".format(check["name"]))
+    else:
+        if type(args[check["name"]]) is bool:
+            return args[check["name"]]
+        else:
+            raise Exception("A valid key: {} format boolean must be provided.".format(check["name"]))
+
+
+def valid_bucket(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
+        else:
+            raise Exception("A valid key: {} format boolean must be provided.".format(check["name"]))
+    else:
+        if type(args[check["name"]]) is str:
+            return args[check["name"]]
+        else:
+            raise Exception("A valid key: {} format boolean must be provided.".format(check["name"]))
+
+
+def valid_path(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
+        else:
+            raise Exception("A valid key: {} format path must be provided.".format(check["name"]))
+    else:
+        if os.path.isdir(args[check["name"]]) or args[check["name"]] == False:
+            return args[check["name"]]
+        else:
+            raise Exception("The path {} does not exist.".format(args[check["name"]]))
 
 
 def error(string):
     print('\033[91m' + string + '\033[0m')
 
 
-class log(object):
-    def __init__(self, name, path=""):
-        self.name = name + datetime.now().strftime("_%Y%m%d_%H%M%S") + ".txt"
-        self.path = os.path.join(path, self.name)
+class logger(object):
+    def __init__(self, name, write=False):
+        if write != False:
+            self.path = os.path.join(write, name)
+        else:
+            self.path = False
         self.stage = 1
 
-    def log(self, string, indent=0):
+    def info(self, string, indent=0):
         out = datetime.now().strftime("%H:%M:%S.%f") + (" " * 3 * (indent + 1)) + string
         print(out)
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
 
     def initialise(self, string):
         out = "****** " + string + " ******"
         print('\033[1m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
 
     def begin_stage(self, string):
         self.newline()
         out = datetime.now().strftime("%H:%M:%S.%f") + "   Stage {}: ".format(self.stage) + string
         self.stage = self.stage + 1
         print('\033[95m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
         return self.stage - 1
 
     def end_stage(self, stage):
         out = datetime.now().strftime("%H:%M:%S.%f") + "   Stage {}: Completed.".format(stage)
         print('\033[92m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
 
     def warning(self, string, indent=0):
         out = datetime.now().strftime("%H:%M:%S.%f") + (" " * 3 * (indent + 1)) + "WARNING: " + string
         print('\033[93m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
 
     def error(self, stage):
         out = datetime.now().strftime("%H:%M:%S.%f") + "   ERROR: Script failed on stage {}".format(stage)
         print('\033[91m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
-            file.write("\n")
-            traceback.print_exc(file=file)
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
+                file.write("\n")
+                traceback.print_exc(file=file)
 
     def end(self, string):
         out = "****** " + string + " ******"
         print('\033[92m' + out + '\033[0m')
-        with open(self.path, "a") as file:
-            file.write(out + "\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write(out + "\n")
 
     def subprocess(self, process, error=""):
         failed = False
@@ -137,22 +173,25 @@ class log(object):
             print(out)
             if error != "" and error in out:
                 failed = True
-            with open(self.path, "a") as file:
-                file.write(out + "\n")
+            if self.path:
+                with open(self.path, "a") as file:
+                    file.write(out + "\n")
             return_code = process.poll()
             if return_code is not None:
                 for output in process.stdout.readlines():
                     out = output.strip()
                     print(out)
-                    with open(self.path, "a") as file:
-                        file.write(out + "\n")
+                    if self.path:
+                        with open(self.path, "a") as file:
+                            file.write(out + "\n")
                 break
         return failed
 
     def newline(self):
         print("")
-        with open(self.path, "a") as file:
-            file.write("\n")
+        if self.path:
+            with open(self.path, "a") as file:
+                file.write("\n")
 
 
 def list_local_cosmo_files(folder, start_date, end_date, template="cosmo2_epfl_lakes_"):

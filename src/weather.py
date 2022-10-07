@@ -5,9 +5,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 
-
-
-
 def cosmo_point_timeseries(coordinates, parameter, files):
     out = [[] for _ in range(len(coordinates))]
     time = []

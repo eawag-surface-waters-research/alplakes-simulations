@@ -3,3 +3,5 @@ logs/*
 !logs/.gitkeep
 src/__pycache__/
 operational/output
+runs/*
+!runs/.gitkeep
