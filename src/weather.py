@@ -92,14 +92,14 @@ def get_cosmo_forecast(filesystem, model, variables, forecast_date, ll_lat, ll_l
 def get_cosmo_reanalysis(filesystem, model, variables, start_date, end_date, ll_lat, ll_lng, ur_lat, ur_lng):
     # For reanalysis files the date on the file is one day after the data in the file
     folder = os.path.join(filesystem, "meteoswiss/cosmo", model)
-    files = [os.path.join(folder, "{}.{}0000.nc".format(model, (start_date+timedelta(days=x)).strftime("%Y%m%d")))
-             for x in range(0, (end_date-start_date).days + 1)]
+    files = [os.path.join(folder, "{}.{}0000.nc".format(model, (start_date + timedelta(days=x)).strftime("%Y%m%d")))
+             for x in range(1, (end_date - start_date).days + 2)]
     bad_files = []
     for file in files:
         if not os.path.isfile(file):
             bad_files.append(file.split("/")[-1].split(".")[1][:8])
     if len(bad_files) > 0:
-        raise ValueError("Data not available for COSMO {} for the following dates: {}".format(model, ", ".join(bad_files)))
+        raise ValueError("Data not available for COSMO {} for the following dates: {}".format(model,", ".join(bad_files)))
     output = {}
     with xr.open_mfdataset(files) as ds:
         bad_variables = []
@@ -107,13 +107,14 @@ def get_cosmo_reanalysis(filesystem, model, variables, start_date, end_date, ll_
             if var not in ds.variables.keys():
                 bad_variables.append(var)
         if len(bad_variables) > 0:
-            raise ValueError("{} are bad variables for COSMO {}. Please select from: {}".format(", ".join(bad_variables), model, ", ".join(ds.keys())))
-        output["time"] = np.array(ds.variables["time"].values)
+            raise ValueError("{} are bad variables for COSMO {}. Please select from: {}".format(
+                                    ", ".join(bad_variables), model, ", ".join(ds.keys())))
+        output["time"] = np.array(ds.variables["time"].values, dtype=str).tolist()
         x, y = np.where(((ds.variables["lat_1"] >= ll_lat) & (ds.variables["lat_1"] <= ur_lat) & (
-                    ds.variables["lon_1"] >= ll_lng) & (ds.variables["lon_1"] <= ur_lng)))
+                ds.variables["lon_1"] >= ll_lng) & (ds.variables["lon_1"] <= ur_lng)))
         x_min, x_max, y_min, y_max = min(x), max(x), min(y), max(y)
-        output["lat"] = ds.variables["lat_1"][x_min:x_max, y_min:y_max].values
-        output["lng"] = ds.variables["lon_1"][x_min:x_max, y_min:y_max].values
+        output["lat"] = ds.variables["lat_1"][x_min:x_max, y_min:y_max].values.tolist()
+        output["lng"] = ds.variables["lon_1"][x_min:x_max, y_min:y_max].values.tolist()
         for var in variables:
             if var in ds.variables.keys():
                 if len(ds.variables[var].dims) == 3:
@@ -122,7 +123,7 @@ def get_cosmo_reanalysis(filesystem, model, variables, start_date, end_date, ll_
                     data = ds.variables[var][:, 0, x_min:x_max, y_min:y_max].values
                 else:
                     data = []
-                output[var] = np.where(np.isnan(data), None, data)
+                output[var] = np.where(np.isnan(data), None, data).tolist()
             else:
                 output[var] = []
     return output
