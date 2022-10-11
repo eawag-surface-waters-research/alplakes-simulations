@@ -37,6 +37,7 @@ def collect_data_api(minx, miny, maxx, maxy, day, variables, api):
         # /meteoswiss/cosmo/reanalysis/{model}/{start_date}/{end_date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
         query = "{}/meteoswiss/cosmo/reanalysis/VNXQ34/{}/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
+        print(query)
         response = requests.get(query)
         if response.status_code == 200:
             data = response.json()
