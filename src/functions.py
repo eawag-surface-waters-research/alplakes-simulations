@@ -62,6 +62,12 @@ def verify_args(args):
     return args
 
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
+
+
 def valid_date(check, args):
     if check["name"] not in args:
         if "default" in check:

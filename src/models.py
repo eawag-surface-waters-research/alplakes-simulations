@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import netCDF4
 import shutil
 import numpy as np
 import subprocess
-from scipy.interpolate import griddata
 from datetime import datetime, timedelta
 from river import *
 from weather import collect_data_local, collect_data_api

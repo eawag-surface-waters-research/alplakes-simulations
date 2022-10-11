@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import sys
 import argparse
 from models import *
-from functions import verify_args
+from functions import verify_args, boolean_string
 
 
 def main(params):
@@ -16,14 +17,16 @@ def main(params):
 
 
 if __name__ == "__main__":
+    if sys.version_info[0:2] != (3, 9):
+        raise Exception('Requires python 3.9')
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', help="Model name e.g. delft3d-flow/greifensee", type=str)
     parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:5.01.00.2163", type=str,)
     parser.add_argument('--start', '-s', help="Start date e.g. 20221901", type=str)
     parser.add_argument('--end', '-e', help="End date e.g. 20221905", type=str)
     parser.add_argument('--bucket', '-b', help="S3 Bucket for restart-files and uploading results.", type=str, default="alplakes-eawag")
-    parser.add_argument('--upload', '-u', help="Upload files to bucket?", type=bool, default=False)
-    parser.add_argument('--run', '-r', help="Run the simulation", type=bool, default=False)
+    parser.add_argument('--upload', '-u', help="Upload files to bucket?", type=boolean_string, default=False)
+    parser.add_argument('--run', '-r', help="Run the simulation", type=boolean_string, default=False)
     parser.add_argument('--files', '-f', help="Path to local files, defaults to API", type=str, default=False)
     parser.add_argument('--api', '-a', help="Url of remote API", type=str, default="http://localhost:8000")
     parser.add_argument('--log', '-l', help="Log directory", type=str, default=False)

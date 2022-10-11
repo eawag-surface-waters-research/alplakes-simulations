@@ -99,7 +99,7 @@ def get_cosmo_reanalysis(filesystem, model, variables, start_date, end_date, ll_
         if not os.path.isfile(file):
             bad_files.append(file.split("/")[-1].split(".")[1][:8])
     if len(bad_files) > 0:
-        raise ValueError("Data not available for COSMO {} for the following dates: {}".format(model,", ".join(bad_files)))
+        raise ValueError("Data not available for COSMO {} for the following dates: {}".format(model, ", ".join(bad_files)))
     output = {}
     with xr.open_mfdataset(files) as ds:
         bad_variables = []
