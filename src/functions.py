@@ -53,6 +53,7 @@ def verify_args(args):
               {"name": "run", "type": valid_bool, "default": False},
               {"name": "files", "type": valid_path, "default": False},
               {"name": "api", "type": valid_string, "default": False},
+              {"name": "today", "type": valid_date, "default": datetime.now()},
               {"name": "log", "type": valid_path, "default": False},
               ]
 

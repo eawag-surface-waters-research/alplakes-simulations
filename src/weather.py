@@ -31,9 +31,8 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, properties, folder
             np.savetxt(f, grid_interp, fmt='%.2f')
 
 
-def collect_data_api(minx, miny, maxx, maxy, day, variables, api):
-    today = datetime.today()
-    if day != today:
+def collect_data_api(minx, miny, maxx, maxy, day, variables, api, today):
+    if day.strftime("%Y%m%d") != today.strftime("%Y%m%d"):
         # /meteoswiss/cosmo/reanalysis/{model}/{start_date}/{end_date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
         query = "{}/meteoswiss/cosmo/reanalysis/VNXQ34/{}/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
@@ -48,9 +47,8 @@ def collect_data_api(minx, miny, maxx, maxy, day, variables, api):
     return data
 
 
-def collect_data_local(minx, miny, maxx, maxy, day, variables, folder):
-    today = datetime.today()
-    if day != today:
+def collect_data_local(minx, miny, maxx, maxy, day, variables, folder, today):
+    if day.strftime("%Y%m%d") != today.strftime("%Y%m%d"):
         data = get_cosmo_reanalysis(folder, "VNXQ34", variables, day, day, minx, miny, maxx, maxy)
     else:
         data = get_cosmo_forecast(folder, "VNXZ32", variables, day, minx, miny, maxx, maxy)

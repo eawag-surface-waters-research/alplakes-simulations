@@ -188,15 +188,14 @@ class Delft3D(object):
             variables = [file["parameter"] for file in self.files]
 
             self.log.info("Writing weather data to simulation files.", indent=1)
-            days = [self.params["start"]+timedelta(days=x) for x in range((min(datetime.today(), self.params["end"]) - self.params["start"]).days+1)]
+            days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
             for day in days:
                 if self.params["files"]:
                     self.log.info("Collecting data for {} from local filesystem.".format(day), indent=2)
-                    data = collect_data_local(minx, miny, maxx, maxy, day, variables, self.params["files"])
+                    data = collect_data_local(minx, miny, maxx, maxy, day, variables, self.params["files"], self.params["today"])
                 else:
                     self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
-                    data = collect_data_api(minx, miny, maxx, maxy, day, variables, self.params["api"])
-
+                    data = collect_data_api(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     write_weather_data_to_file(data["time"], data[file["parameter"]], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
