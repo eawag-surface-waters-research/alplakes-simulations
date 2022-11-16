@@ -198,7 +198,7 @@ class Delft3D(object):
                     data = collect_data_api(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    write_weather_data_to_file(data["time"], data[file["parameter"]], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
+                    write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
 
             self.log.end_stage(stage)
         except Exception as e:
@@ -211,6 +211,7 @@ class Delft3D(object):
             if "inflows" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
+                print(self.properties)
                 self.create_river_data_local_storage()
             self.log.end_stage(stage)
         except Exception as e:
