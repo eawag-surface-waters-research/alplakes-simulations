@@ -33,8 +33,8 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, properties, folder
 
 def collect_data_api(minx, miny, maxx, maxy, day, variables, api, today):
     if day.strftime("%Y%m%d") != today.strftime("%Y%m%d"):
-        # /meteoswiss/cosmo/reanalysis/{model}/{start_date}/{end_date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
-        query = "{}/meteoswiss/cosmo/reanalysis/VNXQ34/{}/{}/{}/{}/{}/{}"
+        # /meteoswiss/cosmo/area/reanalysis/{model}/{start_date}/{end_date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
+        query = "{}/meteoswiss/cosmo/area/reanalysis/VNXQ34/{}/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
         print(query)
         response = requests.get(query)
