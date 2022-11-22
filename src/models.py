@@ -29,13 +29,17 @@ class Delft3D(object):
             {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
             {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
         ]
-        log_name = "{}_{}_{}_{}.txt".format(params["model"].replace("/", "_"),
-                                            params["start"],
-                                            params["end"],
-                                            datetime.now().strftime("_%Y%m%d_%H%M%S"))
-        self.log = logger(log_name, write=params["log"])
-        self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
-        self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
+        try:
+            log_name = "{}_{}_{}_{}.txt".format(params["model"].replace("/", "_"),
+                                                params["start"],
+                                                params["end"],
+                                                datetime.now().strftime("_%Y%m%d_%H%M%S"))
+            self.log = logger(log_name, write=params["log"])
+            self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
+            self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
+        except:
+            self.log = logger("temp.txt")
+            self.log.info("Running in non-automatic mode.")
 
     def process(self):
         self.initialise_simulation_directory()
@@ -106,11 +110,14 @@ class Delft3D(object):
             self.log.error(stage)
             raise
 
-    def load_properties(self):
+    def load_properties(self, manual=False):
         try:
             stage = self.log.begin_stage("Loading properties.")
-            with open(os.path.join(self.simulation_dir, "properties.json"), 'r') as f:
-                self.properties = json.load(f)
+            if manual:
+                self.properties = manual
+            else:
+                with open(os.path.join(self.simulation_dir, "properties.json"), 'r') as f:
+                    self.properties = json.load(f)
             self.log.end_stage(stage)
         except Exception as e:
             self.log.error(stage)

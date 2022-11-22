@@ -5,3 +5,6 @@ src/__pycache__/
 operational/output
 runs/*
 !runs/.gitkeep
+notebooks/.ipynb_checkpoints
+
+
