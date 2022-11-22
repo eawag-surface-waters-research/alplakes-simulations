@@ -24,14 +24,14 @@ If you want to run the simulations as part of the pipeline you need to install d
 
 The most simple call to the script is as follows:
 
-```commandline
+```bash
 python src/main.py -m delft3d-flow/greifensee -d eawag/delft3d-flow:6.03.00.62434 -s 20221009 -e 20221011
 ```
 Where -m references the static data folder, -d is the docker image, -s is the start date and -e is the end date.
 
 For a full list of inputs run:
 
-```commandline
+```bash
 python src/main.py --help
 ```
 
