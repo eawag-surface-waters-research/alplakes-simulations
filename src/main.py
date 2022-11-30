@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument('--upload', '-u', help="Upload files to bucket?", type=boolean_string, default=False)
     parser.add_argument('--run', '-r', help="Run the simulation", type=boolean_string, default=False)
     parser.add_argument('--files', '-f', help="Path to local files, defaults to API", type=str, default=False)
-    parser.add_argument('--api', '-a', help="Url of remote API", type=str, default="http://localhost:8000")
+    parser.add_argument('--api', '-a', help="Url of remote API", type=str, default="http://eaw-alplakes2:8000")
     parser.add_argument('--today', '-t', help="Today's date e.g. 20220102", type=str, default=datetime.now().strftime("%Y%m%d"))
     parser.add_argument('--log', '-l', help="Log directory", type=str, default=False)
     args = parser.parse_args()

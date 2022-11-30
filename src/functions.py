@@ -152,9 +152,17 @@ def error(string):
 
 
 class logger(object):
-    def __init__(self, name, write=False):
-        if write != False:
-            self.path = os.path.join(write, name)
+    def __init__(self, path=False, time=True):
+        if path != False:
+            if os.path.exists(os.path.dirname(path)):
+                path.split(".")[0]
+                if time:
+                    self.path = "{}_{}.log".format(path.split(".")[0], datetime.now().strftime("%H%M%S.%f"))
+                else:
+                    self.path = "{}.log".format(path.split(".")[0])
+            else:
+                print("\033[93mUnable to find log folder: {}. Logs will be printed but not saved.\033[0m".format(os.path.dirname(path)))
+                self.path = False
         else:
             self.path = False
         self.stage = 1
@@ -183,8 +191,8 @@ class logger(object):
                 file.write(out + "\n")
         return self.stage - 1
 
-    def end_stage(self, stage):
-        out = datetime.now().strftime("%H:%M:%S.%f") + "   Stage {}: Completed.".format(stage)
+    def end_stage(self):
+        out = datetime.now().strftime("%H:%M:%S.%f") + "   Stage {}: Completed.".format(self.stage - 1)
         print('\033[92m' + out + '\033[0m')
         if self.path:
             with open(self.path, "a") as file:
@@ -197,8 +205,8 @@ class logger(object):
             with open(self.path, "a") as file:
                 file.write(out + "\n")
 
-    def error(self, stage):
-        out = datetime.now().strftime("%H:%M:%S.%f") + "   ERROR: Script failed on stage {}".format(stage)
+    def error(self):
+        out = datetime.now().strftime("%H:%M:%S.%f") + "   ERROR: Script failed on stage {}".format(self.stage - 1)
         print('\033[91m' + out + '\033[0m')
         if self.path:
             with open(self.path, "a") as file:
@@ -240,6 +248,7 @@ class logger(object):
         if self.path:
             with open(self.path, "a") as file:
                 file.write("\n")
+
 
 
 def list_local_cosmo_files(folder, start_date, end_date, template="VNXQ34.{}0000.nc"):

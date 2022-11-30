@@ -7,9 +7,10 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from datetime import datetime, timedelta
 from weather import *
+from functions import logger
 
 
-def get_raw_river_data(parameters, folder, start_date, end_date, date_format="%d.%m.%Y%H:%M"):
+def get_raw_river_data(parameters, start, end, log=logger):
     for inflow in parameters["inflows"]:
         if "folder" in inflow:
             inflow["files"] = []

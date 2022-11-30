@@ -29,32 +29,29 @@ class Delft3D(object):
             {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
             {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
         ]
-        try:
-            log_name = "{}_{}_{}_{}.txt".format(params["model"].replace("/", "_"),
-                                                params["start"],
-                                                params["end"],
-                                                datetime.now().strftime("_%Y%m%d_%H%M%S"))
-            self.log = logger(log_name, write=params["log"])
-            self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
-            self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
-        except:
-            self.log = logger("temp.txt")
-            self.log.info("Running in non-automatic mode.")
+        if params["log"]:
+            log_prefix = "{}_{}_{}".format(params["model"].replace("/", "_"), params["start"], params["end"])
+            self.log = logger(path=os.path.join(params["log"], log_prefix))
+        else:
+            self.log = logger()
+
+        self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
+        self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
 
     def process(self):
-        self.initialise_simulation_directory()
-        self.copy_static_data()
-        self.collect_restart_file()
+        self.initialise_simulation_directory(remove=False)
+        # self.copy_static_data()
+        # self.collect_restart_file()
         self.load_properties()
-        self.update_control_file()
-        self.weather_data_files()
-        # self.river_data_files()
+        # self.update_control_file()
+        # self.weather_data_files()
+        self.river_data_files()
         if self.params["upload"]:
             self.upload_data()
         if self.params["run"]:
             self.run_simulation()
 
-    def initialise_simulation_directory(self):
+    def initialise_simulation_directory(self, remove=True):
         try:
             stage = self.log.begin_stage("Initialising simulation directory.")
             name = "{}_{}_{}_{}".format(self.params["docker"], self.params["model"],
@@ -62,13 +59,14 @@ class Delft3D(object):
             name = name.replace("/", "_").replace(".", "").replace(":", "").replace("-", "")
             self.simulation_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../runs", name)
             self.log.info("Simulation directory: {}".format(self.simulation_dir), indent=1)
-            if os.path.isdir(self.simulation_dir):
+            if os.path.isdir(self.simulation_dir) and remove:
                 self.log.info("Removing existing simulation simulation directory.", indent=1)
                 shutil.rmtree(self.simulation_dir)
-            os.mkdir(self.simulation_dir)
-            self.log.end_stage(stage)
+            if not os.path.isdir(self.simulation_dir):
+                os.mkdir(self.simulation_dir)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def copy_static_data(self):
@@ -79,9 +77,9 @@ class Delft3D(object):
             files = copy_tree(static, self.simulation_dir)
             for file in files:
                 self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def collect_restart_file(self, region="eu-central-1"):
@@ -94,7 +92,7 @@ class Delft3D(object):
                 file = os.path.join(self.params["files"], "simulations", components[0], "restart-files", components[1], self.restart_file)
                 if os.path.isfile(file):
                     shutil.copyfile(file, os.path.join(self.simulation_dir, self.restart_file))
-                    self.log.end_stage(stage)
+                    self.log.end_stage()
                     return
                 else:
                     self.log.info("Unable to locate restart file: ".format(file), indent=1)
@@ -105,9 +103,9 @@ class Delft3D(object):
             file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
             self.log.info("File location: {}".format(file), indent=2)
             download_file(file, os.path.join(self.simulation_dir, self.restart_file))
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def load_properties(self, manual=False):
@@ -118,9 +116,9 @@ class Delft3D(object):
             else:
                 with open(os.path.join(self.simulation_dir, "properties.json"), 'r') as f:
                     self.properties = json.load(f)
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def update_control_file(self, origin=datetime(2008, 3, 1), period=180):
@@ -145,9 +143,9 @@ class Delft3D(object):
             self.log.info("Writing new dates to simulation file.", indent=1)
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'w') as f:
                 f.writelines(lines)
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def weather_data_files(self, swiss_grid=True, buffer=10):
@@ -207,42 +205,44 @@ class Delft3D(object):
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
 
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
-    def river_data_files(self):
+    def river_data_files(self, extra_days=7):
+        """For creating river files you need at a minimum recorded water level and outflow"""
         try:
             stage = self.log.begin_stage("Creating river data files.")
             if "inflows" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
                 print(self.properties)
-                self.create_river_data_local_storage()
-            self.log.end_stage(stage)
-        except Exception as e:
-            self.log.error(stage)
-            raise
+                print(self.params)
+                start = self.params["start"] - timedelta(days=extra_days)
+                end = self.params["end"]
+                self.log.info("Collecting river data from {} to {}".format(start, end), indent=2)
+                self.properties = get_raw_river_data(self.properties, start, end)
 
-    def create_river_data_local_storage(self):
-        self.log.info("Creating weather data files from local storage.", indent=1)
-        self.log.info("Collecting river data.", indent=2)
-        self.properties = get_raw_river_data(self.properties, self.parameters["river_data"],
-                                             self.parameters["start_date"], self.parameters["end_date"])
-        self.log.info("Cleaning raw river data.", indent=2)
-        self.properties = clean_raw_river_data(self.properties, self.parameters["start_date"],
+                self.log.info("Cleaning raw river data.", indent=2)
+                self.properties = clean_raw_river_data(self.properties, self.parameters["start_date"],
+                                                       self.parameters["end_date"])
+                self.log.info("Flow balance ungauged rivers.", indent=2)
+                self.properties = flow_balance_ungauged_rivers(self.properties)
+                self.log.info("Estimate flow temperatures using meteoswiss data.", indent=2)
+                files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"],
                                                self.parameters["end_date"])
-        self.log.info("Flow balance ungauged rivers.", indent=2)
-        self.properties = flow_balance_ungauged_rivers(self.properties)
-        self.log.info("Estimate flow temperatures using meteoswiss data.", indent=2)
-        files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"],
-                                       self.parameters["end_date"])
-        self.log.info("Located {} local meteo files covering the full simulation period.".format(len(files)), indent=3)
-        self.properties = estimate_flow_temperature(self.properties, files, self.parameters["start_date"])
-        verify_flow_balance(self.properties)
-        self.log.info("Writing data to file.", indent=2)
-        write_river_data_to_file(self.properties, self.parameters["simulation_folder"])
+                self.log.info("Located {} local meteo files covering the full simulation period.".format(len(files)),
+                              indent=3)
+                self.properties = estimate_flow_temperature(self.properties, files, self.parameters["start_date"])
+                verify_flow_balance(self.properties)
+                self.log.info("Writing data to file.", indent=2)
+                write_river_data_to_file(self.properties, self.parameters["simulation_folder"])
+
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
 
     def upload_data(self):
         try:
@@ -261,9 +261,9 @@ class Delft3D(object):
             upload_file(zipfile, self.params["bucket"], object_name=upload_path)
             self.log.info("Removing zip file.", indent=1)
             os.remove(zipfile)
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
     def run_simulation(self):
@@ -283,9 +283,9 @@ class Delft3D(object):
                 raise RuntimeError("Subprocess failed with the following error: {}".format(error))
             elif error:
                 raise RuntimeError("Simulation failed check the logs for more information.")
-            self.log.end_stage(stage)
+            self.log.end_stage()
         except Exception as e:
-            self.log.error(stage)
+            self.log.error()
             raise
 
 
