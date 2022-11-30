@@ -29,14 +29,16 @@ class Delft3D(object):
             {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
             {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
         ]
-        if params["log"]:
+
+        if "log" in params and params["log"]:
             log_prefix = "{}_{}_{}".format(params["model"].replace("/", "_"), params["start"], params["end"])
             self.log = logger(path=os.path.join(params["log"], log_prefix))
         else:
             self.log = logger()
+        if "model" in params and "docker" in params:
+            self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
-        self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
-        self.log.info("Simulation from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
+        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
 
     def process(self):
         self.initialise_simulation_directory(remove=False)
