@@ -1,114 +1,124 @@
 # -*- coding: utf-8 -*-
 import os
 import math
+import requests
 import numpy as np
 import pandas as pd
+from prophet import Prophet
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from datetime import datetime, timedelta
-from weather import *
+
 from functions import logger
 
 
-def get_raw_river_data(parameters, start, end, log=logger):
-    for inflow in parameters["inflows"]:
-        if "folder" in inflow:
-            inflow["files"] = []
-            datetime_arr = []
-            temperature_arr = []
-            flow_arr = []
-            ideal_files = []
-            for day in np.arange(start_date, end_date, timedelta(days=1)).astype(datetime):
-                ideal_files.append(inflow["prefix"] + day.strftime('%Y%m%d') + ".txt")
-            for path, subdirs, files in os.walk(folder):
-                for name in files:
-                    if name in ideal_files:
-                        inflow["files"].append(os.path.join(path, name))
-                        df = pd.read_csv(os.path.join(path, name), sep='\t')
-                        df["datetime"] = pd.to_datetime(df['Date'] + df["Time"], format=date_format)
-                        datetime_arr = datetime_arr + list(df["datetime"])
-                        if "temperature" in inflow:
-                            temperature_arr = temperature_arr + list(df[inflow["temperature"]])
-                        else:
-                            temperature_arr = temperature_arr + [np.nan] * len(df["datetime"])
-                        if "flow" in inflow:
-                            flow_arr = flow_arr + list(df[inflow["flow"]])
-                        else:
-                            flow_arr = flow_arr + [np.nan] * len(df["datetime"])
-            inflow["data"] = pd.DataFrame(zip(datetime_arr, flow_arr, temperature_arr), columns=["datetime", "flow", "temperature"])
+def download_bafu_hydrodata_measured(api, station_id, parameter, start_date, end_date):
+    # /bafu/hydrodata/measured/{station_id}/{parameter}/{start_date}/{end_date}
+    query = "{}/bafu/hydrodata/measured/{}/{}/{}/{}".format(api, station_id, parameter, start_date, end_date)
+    response = requests.get(query)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(response.json())
+        raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
 
-    if "outflow" in parameters:
-        parameters["outflow"]["files"] = []
-        datetime_arr = []
-        temperature_arr = []
-        flow_arr = []
-        ideal_files = []
-        for day in np.arange(start_date, end_date, timedelta(days=1)).astype(datetime):
-            ideal_files.append(parameters["outflow"]["prefix"] + day.strftime('%Y%m%d') + ".txt")
-        for path, subdirs, files in os.walk(folder):
-            for name in files:
-                if name in ideal_files:
-                    parameters["outflow"]["files"].append(os.path.join(path, name))
-                    df = pd.read_csv(os.path.join(path, name), sep='\t')
-                    df["datetime"] = pd.to_datetime(df['Date'] + df["Time"], format=date_format)
-                    datetime_arr = datetime_arr + list(df["datetime"])
-                    if "temperature" in parameters["outflow"]:
-                        temperature_arr = temperature_arr + list(df[parameters["outflow"]["temperature"]])
-                    else:
-                        temperature_arr = temperature_arr + [np.nan] * len(df["datetime"])
-                    if "flow" in parameters["outflow"]:
-                        flow_arr = flow_arr + list(df[parameters["outflow"]["flow"]])
-                    else:
-                        flow_arr = flow_arr + [np.nan] * len(df["datetime"])
-        parameters["outflow"]["data"] = pd.DataFrame(zip(datetime_arr, flow_arr, temperature_arr), columns=["datetime", "flow", "temperature"])
 
-    if "waterlevel" in parameters:
-        parameters["waterlevel"]["files"] = []
-        datetime_arr = []
-        level_arr = []
-        ideal_files = []
-        for day in np.arange(start_date, end_date, timedelta(days=1)).astype(datetime):
-            ideal_files.append(parameters["waterlevel"]["prefix"] + day.strftime('%Y%m%d') + ".txt")
-        for path, subdirs, files in os.walk(folder):
-            for name in files:
-                if name in ideal_files:
-                    parameters["waterlevel"]["files"].append(os.path.join(path, name))
-                    df = pd.read_csv(os.path.join(path, name), sep='\t')
-                    df["datetime"] = pd.to_datetime(df['Date'] + df["Time"], format=date_format)
-                    datetime_arr = datetime_arr + list(df["datetime"])
-                    level_arr = level_arr + list(df[parameters["waterlevel"]["level"]])
-        parameters["waterlevel"]["data"] = pd.DataFrame(zip(datetime_arr, level_arr), columns=["datetime", "level"])
+def download_bafu_hydrodata(parameters, start, end, api, today, log=logger):
+    forecast = False
+    if end.strftime("%Y%m%d") == today.strftime("%Y%m%d") or end > today:
+        forecast = True
+        end = today - timedelta(days=1)
+
+    for key in ["inflows", "outflows", "waterlevels"]:
+        if key in parameters:
+            for parameter in parameters[key]:
+                if "station_id" in parameter:
+                    for parameter_type in ["flow", "temperature", "level"]:
+                        if parameter_type in parameter and "parameter" in parameter[parameter_type]:
+                            log.info("Downloading {} from {} ({}) from {} to {}"
+                                     .format(parameter[parameter_type]["parameter"],
+                                             parameter["station_name"],
+                                             parameter["station_id"],
+                                             start.strftime("%Y%m%d"),
+                                             end.strftime("%Y%m%d")),
+                                     indent=2)
+                            parameter[parameter_type]["data"] = \
+                                download_bafu_hydrodata_measured(api,
+                                                                 parameter["station_id"],
+                                                                 parameter[parameter_type]["parameter"],
+                                                                 start.strftime("%Y%m%d"),
+                                                                 end.strftime("%Y%m%d"))
+                            if forecast and "forecast" in parameter[parameter_type]:
+                                log.warning("Forecast collection not yet implemented.", indent=2)
+
     return parameters
 
 
-def clean_raw_river_data(parameters, start_date, end_date, dt=timedelta(minutes=10), interpolate="linear"):
-    master_datetime = np.arange(start_date, end_date, dt)
-    df = pd.DataFrame(master_datetime, columns=["datetime"])
-    for inflow in parameters["inflows"]:
-        if "folder" in inflow:
-            data = df.merge(inflow["data"], on='datetime', how='left')
-            data['flow'].values[data['flow'].values < inflow["min_flow"]] = np.nan
-            data = data.interpolate(method=interpolate)
-            inflow["data"] = data
+def clean_smooth_resample(parameters, start_date, end_date, dt=timedelta(minutes=10), log=logger, plot=False):
+    time = np.arange(start_date, end_date, dt)
+    for key in ["inflows", "outflows", "waterlevels"]:
+        if key in parameters:
+            for parameter in parameters[key]:
+                if "station_id" in parameter:
+                    for parameter_type in ["flow", "temperature", "level"]:
+                        if parameter_type in parameter and "parameter" in parameter[parameter_type]:
+                            log.info("Processing {} from {} ({})"
+                                     .format(parameter[parameter_type]["parameter"],
+                                             parameter["station_name"],
+                                             parameter["station_id"],),
+                                     indent=2)
+                            # Clean
+                            df = pd.DataFrame(parameter[parameter_type]["data"])
+                            df.columns = ["ds", "y"]
+                            df["ds"] = pd.to_datetime(df["ds"], errors="coerce", utc=True)
+                            df["y"] = pd.to_numeric(df["y"], errors="coerce")
+                            df = df.dropna()
+                            df['y'].where(df['y'] < parameter[parameter_type]["max"], parameter[parameter_type]["max"],
+                                          inplace=True)
+                            df['y'].where(df['y'] > parameter[parameter_type]["min"], parameter[parameter_type]["min"],
+                                          inplace=True)
 
-    if "outflow" in parameters:
-        data = df.merge(parameters["outflow"]["data"], on='datetime', how='left')
-        data['flow'].values[data['flow'].values < parameters["outflow"]["min_flow"]] = np.nan
-        data = data.interpolate(method=interpolate)
-        data["raw_flow"] = data["flow"]
-        data["flow"] = data["flow"].rolling(window=12, win_type='gaussian', center=True).mean(std=2)
-        data = data.interpolate(method=interpolate, limit_direction='backward')
-        data = data.interpolate(method=interpolate)
-        parameters["outflow"]["data"] = data
+                            # Smooth
+                            if "smooth" in parameter[parameter_type]:
+                                df["y"] = df["y"].rolling(window=parameter[parameter_type]["smooth"]["window"],
+                                                          win_type='gaussian', min_periods=10,
+                                                          center=True).mean(std=parameter[parameter_type]["smooth"]["std"])
+                                df = df.dropna()
 
-    if "waterlevel" in parameters:
-        data = df.merge(parameters["waterlevel"]["data"], on='datetime', how='left')
-        data = data.interpolate(method=interpolate)
-        data["level"] = data["level"].rolling(window=144, win_type='gaussian', center=True).mean(std=32)
-        data = data.interpolate(method=interpolate, limit_direction='backward')
-        data = data.interpolate(method=interpolate)
-        parameters["waterlevel"]["data"] = data
+                            # Resample
+                            f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind='linear',
+                                         fill_value='extrapolate')
+                            df = pd.DataFrame({"ds": time, "y": f(time.astype('int') / 10 ** 6)})
+                            if plot:
+                                plt.plot(df["ds"], df["y"])
+                                plt.title(parameter["station_name"] + " " + parameter[parameter_type]["parameter"])
+                                plt.show()
+                            parameter[parameter_type]["data"] = df
     return parameters
+
+
+def forecast(parameters, start_date, end_date, dt=timedelta(minutes=10), log=logger, plot=True):
+    time = np.arange(start_date, end_date + timedelta(days=4), dt)
+    for key in ["inflows", "outflows", "waterlevels"]:
+        if key in parameters:
+            for parameter in parameters[key]:
+                if "station_id" in parameter:
+                    for parameter_type in ["flow", "temperature", "level"]:
+                        if parameter_type in parameter and "parameter" in parameter[parameter_type]:
+                            log.info("Processing {} from {} ({})"
+                                     .format(parameter[parameter_type]["parameter"],
+                                             parameter["station_name"],
+                                             parameter["station_id"],),
+                                     indent=2)
+                            # Clean
+                            df = parameter[parameter_type]["data"]
+                            m = Prophet()
+                            m.fit(df)
+                            future = pd.DataFrame({"ds": time})
+                            forecast = m.predict(future)
+                            if plot:
+                                fig1 = m.plot(forecast)
+                                plt.show()
 
 
 def get_water_level_change_flow_equivalent(df_wl, altitude, bathymetry):
@@ -129,7 +139,8 @@ def predict_water_level(parameters):
     for inflow in parameters["inflows"]:
         flow_change = flow_change + inflow["data"]["flow"]
 
-    dt = (parameters["outflow"]["data"]["datetime"].iloc[1] - parameters["outflow"]["data"]["datetime"].iloc[0]).total_seconds()
+    dt = (parameters["outflow"]["data"]["datetime"].iloc[1] - parameters["outflow"]["data"]["datetime"].iloc[
+        0]).total_seconds()
 
     level = np.array(parameters["waterlevel"]["data"]["level"])[0]
 
@@ -171,8 +182,8 @@ def verify_flow_balance(parameters):
 
 
 def create_periods(dt, rebalance_period, length):
-    steps = min(round(rebalance_period / dt), round(length/2))
-    period = math.floor(length/steps)
+    steps = min(round(rebalance_period / dt), round(length / 2))
+    period = math.floor(length / steps)
     periods = []
     for p in range(period):
         periods.append([p * steps, p * steps + steps])
@@ -184,7 +195,8 @@ def flow_balance_ungauged_rivers(parameters, min_flow=0.0001, dt=600, rebalance_
     outflow = np.array(parameters["outflow"]["data"]["flow"])
     master_datetime = np.array(parameters["outflow"]["data"]["datetime"])
     temperature = [np.nan] * len(master_datetime)
-    water_level_flow = get_water_level_change_flow_equivalent(parameters["waterlevel"]["data"], parameters["altitude"], parameters["bathymetry"])
+    water_level_flow = get_water_level_change_flow_equivalent(parameters["waterlevel"]["data"], parameters["altitude"],
+                                                              parameters["bathymetry"])
     extra_flow = outflow + water_level_flow
     periods = create_periods(dt, rebalance_period, len(master_datetime))
 
@@ -204,10 +216,11 @@ def flow_balance_ungauged_rivers(parameters, min_flow=0.0001, dt=600, rebalance_
                 added_vol = np.abs(np.sum(neg_flow[p[0]: p[1]] * dt))
                 temp_flow[temp_flow <= min_flow] = min_flow
                 total_vol = np.sum(temp_flow * dt)
-                temp_flow = temp_flow * (1 - added_vol/total_vol)
+                temp_flow = temp_flow * (1 - added_vol / total_vol)
                 out_flow = np.concatenate((out_flow, temp_flow))
 
-            inflow["data"] = pd.DataFrame(zip(master_datetime, out_flow, temperature), columns=["datetime", "flow", "temperature"])
+            inflow["data"] = pd.DataFrame(zip(master_datetime, out_flow, temperature),
+                                          columns=["datetime", "flow", "temperature"])
     return parameters
 
 
@@ -235,9 +248,10 @@ def toffolon_river_water_temperature(Ts, Ta, Q, time, a, ty=366):
     for i in range(1, len(Ta)):
         theta = np.abs(Q[i] / np.nanmean(Q))
         delta = theta ** a4
-        t = (time[i] - datetime(time[i].year, 1, 1)).total_seconds()/(3600*24)
-        ty = (datetime(time[i].year + 1, 1, 1) - datetime(time[i].year, 1, 1)).total_seconds()/(3600*24)
-        dTw = 1 / delta * (a1 + a2 * Ta[i - 1] - a3 * Tw[i - 1] + theta * (a5 + a6 * math.cos(2 * math.pi * (t / ty - a7)) - a8 * Tw[i - 1])) * dt
+        t = (time[i] - datetime(time[i].year, 1, 1)).total_seconds() / (3600 * 24)
+        ty = (datetime(time[i].year + 1, 1, 1) - datetime(time[i].year, 1, 1)).total_seconds() / (3600 * 24)
+        dTw = 1 / delta * (a1 + a2 * Ta[i - 1] - a3 * Tw[i - 1] + theta * (
+                a5 + a6 * math.cos(2 * math.pi * (t / ty - a7)) - a8 * Tw[i - 1])) * dt
         Tw[i] = Tw[i] + dTw
     return Tw
 
@@ -252,14 +266,15 @@ def estimate_flow_temperature(parameters, files, start_date, temperature="T_2M")
             df = df.interpolate(method="linear")
             start_temperature = parameters["inflows"][i]["temperature"][start_date.month - 1]
             df["temperature"] = toffolon_river_water_temperature(start_temperature, df[temperature],
-                                                                  parameters["inflows"][i]["data"]["flow"],
-                                                                  parameters["inflows"][i]["data"]["datetime"],
-                                                                  parameters["inflows"][i]["a"])
+                                                                 parameters["inflows"][i]["data"]["flow"],
+                                                                 parameters["inflows"][i]["data"]["datetime"],
+                                                                 parameters["inflows"][i]["a"])
             parameters["inflows"][i]["data"] = df
     return parameters
 
 
-def write_river_data_to_file(parameters, folder, filename="RiversOperationsQuantities.dis", origin=datetime(2008, 3, 1)):
+def write_river_data_to_file(parameters, folder, filename="RiversOperationsQuantities.dis",
+                             origin=datetime(2008, 3, 1)):
     f = open(os.path.join(folder, filename), "w")
     for inflow in parameters["inflows"]:
         f.write("table-name           'Discharge : {}'\n".format(str(inflow["id"])))
@@ -279,7 +294,7 @@ def write_river_data_to_file(parameters, folder, filename="RiversOperationsQuant
         df = inflow["data"]
         df["flow_velocity"] = inflow["flow_velocity"]
         df["flow_direction"] = inflow["flow_direction"]
-        df["minutes"] = (df["datetime"]-origin).astype('timedelta64[m]')
+        df["minutes"] = (df["datetime"] - origin).astype('timedelta64[m]')
         out = np.column_stack((df["minutes"], df["flow"], df["temperature"], df["flow_velocity"], df["flow_direction"]))
         np.savetxt(f, out, fmt="%.7e", delimiter="   ", newline="\n ")
 

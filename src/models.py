@@ -4,9 +4,10 @@ import json
 import shutil
 import numpy as np
 import subprocess
+
+import river
+import weather
 from datetime import datetime, timedelta
-from river import *
-from weather import collect_data_local, collect_data_api
 from functions import logger, list_local_cosmo_files, ch1903_to_latlng, download_file, upload_file
 from distutils.dir_util import copy_tree
 
@@ -42,7 +43,7 @@ class Delft3D(object):
 
     def process(self):
         self.initialise_simulation_directory(remove=False)
-        # self.copy_static_data()
+        self.copy_static_data()
         # self.collect_restart_file()
         self.load_properties()
         # self.update_control_file()
@@ -89,9 +90,9 @@ class Delft3D(object):
             stage = self.log.begin_stage("Collecting restart file.")
             self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
             components = self.params["model"].split("/")
-            if self.params["files"]:
+            if self.params["restart"]:
                 self.log.info("Copying restart file from local storage.", indent=1)
-                file = os.path.join(self.params["files"], "simulations", components[0], "restart-files", components[1], self.restart_file)
+                file = self.params["restart"]
                 if os.path.isfile(file):
                     shutil.copyfile(file, os.path.join(self.simulation_dir, self.restart_file))
                     self.log.end_stage()
@@ -197,12 +198,8 @@ class Delft3D(object):
             self.log.info("Writing weather data to simulation files.", indent=1)
             days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
             for day in days:
-                if self.params["files"]:
-                    self.log.info("Collecting data for {} from local filesystem.".format(day), indent=2)
-                    data = collect_data_local(minx, miny, maxx, maxy, day, variables, self.params["files"], self.params["today"])
-                else:
-                    self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
-                    data = collect_data_api(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
+                self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
+                data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
@@ -212,23 +209,29 @@ class Delft3D(object):
             self.log.error()
             raise
 
-    def river_data_files(self, extra_days=7):
+    def river_data_files(self, pre_days=7, post_days=2):
         """For creating river files you need at a minimum recorded water level and outflow"""
         try:
             stage = self.log.begin_stage("Creating river data files.")
             if "inflows" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
-                print(self.properties)
-                print(self.params)
-                start = self.params["start"] - timedelta(days=extra_days)
-                end = self.params["end"]
-                self.log.info("Collecting river data from {} to {}".format(start, end), indent=2)
-                self.properties = get_raw_river_data(self.properties, start, end)
+                start = self.params["start"] - timedelta(days=pre_days)
+                if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
+                    end = self.params["end"] + timedelta(days=post_days)
+                else:
+                    end = self.params["end"]
+                self.log.info("Collecting river data from {} to {}".format(start, end), indent=1)
+                self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"], self.params["today"], log=self.log)
 
-                self.log.info("Cleaning raw river data.", indent=2)
-                self.properties = clean_raw_river_data(self.properties, self.parameters["start_date"],
-                                                       self.parameters["end_date"])
+                self.log.info("Cleaning, smoothing and resampling downloaded data.", indent=1)
+                self.properties = river.clean_smooth_resample(self.properties, start, end, log=self.log)
+
+                self.log.info("Forcasting beyond measured data.", indent=1)
+                self.properties = river.forecast(self.properties, start, end, log=self.log)
+
+
+                """
                 self.log.info("Flow balance ungauged rivers.", indent=2)
                 self.properties = flow_balance_ungauged_rivers(self.properties)
                 self.log.info("Estimate flow temperatures using meteoswiss data.", indent=2)
@@ -240,7 +243,7 @@ class Delft3D(object):
                 verify_flow_balance(self.properties)
                 self.log.info("Writing data to file.", indent=2)
                 write_river_data_to_file(self.properties, self.parameters["simulation_folder"])
-
+                """
             self.log.end_stage()
         except Exception as e:
             self.log.error()

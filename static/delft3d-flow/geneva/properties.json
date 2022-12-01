@@ -2,7 +2,6 @@
   "grid": {"minx": 490000, "miny": 110000, "maxx": 570000, "maxy": 160000, "dx": 1000, "dy": 1000},
   "inflows": [
     {
-      "id": 1,
       "name": "Rhone",
       "station_id": 2009,
       "station_name": "Porte du Scex",
@@ -37,7 +36,6 @@
       "cell": [ 172, 14, 64 ]
     },
     {
-      "id": 2,
       "name": "Dranse",
       "flow": {
         "min": 2.1,
@@ -64,7 +62,6 @@
       "cell": [ 101, 10, 64 ]
     },
     {
-      "id": 3,
       "name": "Aubonne",
       "station_id": 2433,
       "station_name": "Allaman, Le Coulet",
@@ -99,7 +96,6 @@
       "cell": [ 82, 28, 64 ]
     },
     {
-      "id": 4,
       "name": "Venoge",
       "station_id": 2432,
       "station_name": "Ecublens, Les Bois",
@@ -124,7 +120,7 @@
         ]
       },
       "temperature": {
-        "parameter":  "Wassertemperatur",
+        "parameter":  "Wassertemperatur1",
         "unit": "°C",
         "min": 0,
         "max": 20,
@@ -134,8 +130,8 @@
       "cell": [ 107, 33, 82 ]
     }
   ],
-  "outflow": {
-    "id": 5,
+  "outflows": [
+    {
     "name": "Rhone",
     "station_id": 2606,
     "station_name": "Genève, Halle de l'île",
@@ -144,20 +140,26 @@
       "source": "BAFU",
       "unit": "m³/s",
       "min": 20,
-      "max": 750
+      "max": 750,
+      "smooth": {"window":  12, "std": 2}
+      }
     }
-  },
-  "waterlevel": {
-    "id": 6,
+  ],
+  "waterlevels": [
+    {
     "name": "Lac Léman",
     "station_id": 2027,
     "station_name": "St-Prex",
     "level": {
       "parameter": "PegelPneumatik",
       "source": "BAFU",
-      "unit": "m"
+      "unit": "m",
+      "min": 371,
+      "max": 373,
+      "smooth": {"window":  144, "std": 32}
+      }
     }
-  },
+  ],
   "altitude": 372,
   "bathymetry": {
     "depth": [

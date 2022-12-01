@@ -50,8 +50,8 @@ def verify_args(args):
               {"name": "end", "type": valid_date},
               {"name": "upload", "type": valid_bool, "default": False},
               {"name": "bucket", "type": valid_bucket, "default": False},
+              {"name": "restart", "type": valid_file, "default": False},
               {"name": "run", "type": valid_bool, "default": False},
-              {"name": "files", "type": valid_path, "default": False},
               {"name": "api", "type": valid_string, "default": False},
               {"name": "today", "type": valid_date, "default": datetime.now()},
               {"name": "log", "type": valid_path, "default": False},
@@ -132,6 +132,19 @@ def valid_path(check, args):
             return args[check["name"]]
         else:
             raise Exception("The path {} does not exist.".format(args[check["name"]]))
+
+
+def valid_file(check, args):
+    if check["name"] not in args:
+        if "default" in check:
+            return check["default"]
+        else:
+            raise Exception("A valid key: {} format path must be provided.".format(check["name"]))
+    else:
+        if os.path.isfile(args[check["name"]]) or args[check["name"]] == check["default"]:
+            return args[check["name"]]
+        else:
+            raise Exception("The file {} does not exist.".format(args[check["name"]]))
 
 
 def valid_string(check, args):
