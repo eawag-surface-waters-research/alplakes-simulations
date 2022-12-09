@@ -42,12 +42,12 @@ class Delft3D(object):
         self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
 
     def process(self):
-        self.initialise_simulation_directory(remove=False)
+        self.initialise_simulation_directory(remove=True)
         self.copy_static_data()
-        # self.collect_restart_file()
+        self.collect_restart_file()
         self.load_properties()
-        # self.update_control_file()
-        # self.weather_data_files()
+        self.update_control_file()
+        self.weather_data_files()
         self.river_data_files()
         if self.params["upload"]:
             self.upload_data()
@@ -56,7 +56,7 @@ class Delft3D(object):
 
     def initialise_simulation_directory(self, remove=True):
         try:
-            stage = self.log.begin_stage("Initialising simulation directory.")
+            self.log.begin_stage("Initialising simulation directory.")
             name = "{}_{}_{}_{}".format(self.params["docker"], self.params["model"],
                                         self.params["start"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d"))
             name = name.replace("/", "_").replace(".", "").replace(":", "").replace("-", "")
@@ -74,7 +74,7 @@ class Delft3D(object):
 
     def copy_static_data(self):
         try:
-            stage = self.log.begin_stage("Copying static data to simulation folder.")
+            self.log.begin_stage("Copying static data to simulation folder.")
             parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
             static = os.path.join(parent_dir, "static", self.params["model"])
             files = copy_tree(static, self.simulation_dir)
@@ -87,7 +87,7 @@ class Delft3D(object):
 
     def collect_restart_file(self, region="eu-central-1"):
         try:
-            stage = self.log.begin_stage("Collecting restart file.")
+            self.log.begin_stage("Collecting restart file.")
             self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
             components = self.params["model"].split("/")
             if self.params["restart"]:
@@ -113,7 +113,7 @@ class Delft3D(object):
 
     def load_properties(self, manual=False):
         try:
-            stage = self.log.begin_stage("Loading properties.")
+            self.log.begin_stage("Loading properties.")
             if manual:
                 self.properties = manual
             else:
@@ -126,7 +126,7 @@ class Delft3D(object):
 
     def update_control_file(self, origin=datetime(2008, 3, 1), period=180):
         try:
-            stage = self.log.begin_stage("Updating control file dates.")
+            self.log.begin_stage("Updating control file dates.")
             self.log.info("Reading simulation file.", indent=1)
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'r') as f:
                 lines = f.readlines()
@@ -151,9 +151,9 @@ class Delft3D(object):
             self.log.error()
             raise
 
-    def weather_data_files(self, swiss_grid=True, buffer=10):
+    def weather_data_files(self, swiss_grid=True, buffer=10, no_data_value="-999.00"):
         try:
-            stage = self.log.begin_stage("Creating weather data files.")
+            self.log.begin_stage("Creating weather data files.")
 
             self.log.info("Creating the meteo grid", indent=1)
             grid = self.properties["grid"]
@@ -173,7 +173,7 @@ class Delft3D(object):
                 with open(os.path.join(self.simulation_dir, self.files[i]["filename"]), "w") as f:
                     f.write('FileVersion = 1.03')
                     f.write('\nfiletype = meteo_on_equidistant_grid')
-                    f.write('\nNODATA_value = -999.00')
+                    f.write('\nNODATA_value = ' + str(no_data_value))
                     f.write('\nn_cols = ' + str(len(gx)))
                     f.write('\nn_rows = ' + str(len(gy)))
                     f.write('\ngrid_unit = m')
@@ -202,7 +202,7 @@ class Delft3D(object):
                 data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir)
+                    weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir, no_data_value)
 
             self.log.end_stage()
         except Exception as e:
@@ -212,7 +212,7 @@ class Delft3D(object):
     def river_data_files(self, pre_days=7, post_days=2):
         """For creating river files you need at a minimum recorded water level and outflow"""
         try:
-            stage = self.log.begin_stage("Creating river data files.")
+            self.log.begin_stage("Creating river data files.")
             if "inflows" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
@@ -251,7 +251,7 @@ class Delft3D(object):
 
     def upload_data(self):
         try:
-            stage = self.log.begin_stage("Uploading simulation inputs to S3 bucket.")
+            self.log.begin_stage("Uploading simulation inputs to S3 bucket.")
             self.log.info("Zipping simulation folder.", indent=1)
             zipfile = self.simulation_dir + ".zip"
             if os.path.isfile(zipfile):
@@ -273,7 +273,7 @@ class Delft3D(object):
 
     def run_simulation(self):
         try:
-            stage = self.log.begin_stage("Running simulation.")
+            self.log.begin_stage("Running simulation.")
             self.log.info("Running simulation as a subprocess.", indent=1)
             print("-v {}:/job".format(self.simulation_dir))
             process = subprocess.Popen(["docker", "run", "-v", "{}:/job".format(self.simulation_dir),

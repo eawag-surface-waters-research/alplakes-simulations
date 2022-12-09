@@ -11,8 +11,9 @@ from datetime import datetime, timedelta
 from functions import latlng_to_ch1903
 
 
-def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, properties, folder, origin=datetime(2008, 3, 1, tzinfo=pytz.utc)):
-    var = np.array(var) + properties["adjust"]
+def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc)):
+    var = np.array(pd.to_numeric(var, errors='coerce'), dtype=float)
+    var = var + properties["adjust"]
     time = np.array(time, dtype="datetime64")
     lat = np.array(lat)
     lng = np.array(lng)
@@ -26,7 +27,7 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, properties, folder
             mx, my = latlng_to_ch1903(lat, lng)
             mxx, myy = mx.flatten(), my.flatten()
             grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy))
-            grid_interp[np.isnan(grid_interp)] = -999.00
+            grid_interp[np.isnan(grid_interp)] = no_data_value
             f.write("\n")
             np.savetxt(f, grid_interp, fmt='%.2f')
 
@@ -50,6 +51,9 @@ def download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, api, 
         response = requests.get(query)
         if response.status_code == 200:
             data = response.json()
+            for key in list(data.keys()):
+                if "_MEAN" in key:
+                    data[key.replace("_MEAN", "")] = data.pop(key)
         else:
             raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
     return data
