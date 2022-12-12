@@ -39,7 +39,7 @@ class Delft3D(object):
         if "model" in params and "docker" in params:
             self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
-        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24)))
+        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24) - timedelta(seconds=1)))
 
     def process(self):
         self.initialise_simulation_directory(remove=True)
