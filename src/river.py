@@ -49,7 +49,7 @@ def download_bafu_hydrodata(parameters, start, end, api, today, log=logger):
                                                                  start.strftime("%Y%m%d"),
                                                                  end.strftime("%Y%m%d"))
                             if forecast and "forecast" in parameter[parameter_type]:
-                                log.warning("Forecast collection not yet implemented.", indent=2)
+                                log.warning("Forecast collection not yet implemented, data will be extrapolated.", indent=2)
 
     return parameters
 
@@ -65,7 +65,7 @@ def clean_smooth_resample(parameters, start_date, end_date, dt=timedelta(minutes
                             log.info("Processing {} from {} ({})"
                                      .format(parameter[parameter_type]["parameter"],
                                              parameter["station_name"],
-                                             parameter["station_id"],),
+                                             parameter["station_id"], ),
                                      indent=2)
                             # Clean
                             df = pd.DataFrame(parameter[parameter_type]["data"])
@@ -82,12 +82,12 @@ def clean_smooth_resample(parameters, start_date, end_date, dt=timedelta(minutes
                             if "smooth" in parameter[parameter_type]:
                                 df["y"] = df["y"].rolling(window=parameter[parameter_type]["smooth"]["window"],
                                                           win_type='gaussian', min_periods=10,
-                                                          center=True).mean(std=parameter[parameter_type]["smooth"]["std"])
+                                                          center=True).mean(
+                                    std=parameter[parameter_type]["smooth"]["std"])
                                 df = df.dropna()
 
                             # Resample
-                            f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind='linear',
-                                         fill_value='extrapolate')
+                            f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind='linear', bounds_error=False, fill_value=np.nan)
                             df = pd.DataFrame({"ds": time, "y": f(time.astype('int') / 10 ** 6)})
                             if plot:
                                 plt.plot(df["ds"], df["y"])
@@ -97,8 +97,7 @@ def clean_smooth_resample(parameters, start_date, end_date, dt=timedelta(minutes
     return parameters
 
 
-def forecast(parameters, start_date, end_date, dt=timedelta(minutes=10), log=logger, plot=True):
-    time = np.arange(start_date, end_date + timedelta(days=4), dt)
+def forecast(parameters, log=logger, plot=False):
     for key in ["inflows", "outflows", "waterlevels"]:
         if key in parameters:
             for parameter in parameters[key]:
@@ -108,19 +107,107 @@ def forecast(parameters, start_date, end_date, dt=timedelta(minutes=10), log=log
                             log.info("Processing {} from {} ({})"
                                      .format(parameter[parameter_type]["parameter"],
                                              parameter["station_name"],
-                                             parameter["station_id"],),
+                                             parameter["station_id"], ),
                                      indent=2)
-                            # Clean
-                            df = parameter[parameter_type]["data"]
-                            m = Prophet()
-                            m.fit(df)
-                            future = pd.DataFrame({"ds": time})
-                            forecast = m.predict(future)
+
+                            # Forecast
+                            if parameter_type == "flow":
+                                full = forecast_flow(parameter[parameter_type]["data"])
+                            elif parameter_type == "temperature":
+                                full = forecast_temperature(parameter[parameter_type]["data"])
+                            elif parameter_type == "level":
+                                full = forecast_level(parameter[parameter_type]["data"])
+
+                            parameter[parameter_type]["data"] = full
                             if plot:
-                                fig1 = m.plot(forecast)
+                                plt.plot(full["ds"], full["y"])
                                 plt.show()
 
 
+def forecast_flow(df, method="fixed"):
+    if method == "fixed":
+        return forecast_fixed(df)
+    else:
+        raise ValueError("Method {} not implemented.".format(method))
+
+
+def forecast_temperature(df, method="fixed"):
+    if method == "fixed":
+        return forecast_fixed(df)
+    else:
+        raise ValueError("Method {} not implemented.".format(method))
+
+
+def forecast_level(df, method="fixed"):
+    if method == "fixed":
+        return forecast_fixed(df)
+    else:
+        raise ValueError("Method {} not implemented.".format(method))
+
+
+def forecast_fixed(df):
+    data = np.array(df["y"])
+    fvi = df["y"].first_valid_index()
+    lvi = df["y"].last_valid_index()
+    if fvi > 0:
+        data[0:fvi] = data[fvi]
+    if lvi < len(df):
+        data[lvi:] = data[lvi]
+    df["y"] = data
+    return df
+
+
+def flow_balance(parameters, log=logger, plot=False):
+    return parameters
+
+
+def write_river_data_to_file(parameters, folder, start, end, filename="RiversOperationsQuantities.dis",
+                             origin=datetime(2008, 3, 1), log=logger):
+    f = open(os.path.join(folder, filename), "w")
+    for inflow in parameters["inflows"]:
+        f.write("table-name           'Discharge : {}'\n".format(str(inflow["id"])))
+        f.write("contents             'momentum'\n")
+        f.write("location             '{}'\n".format(inflow["name"]))
+        f.write("time-function        'non-equidistant'\n")
+        f.write("reference-time       {}\n".format(origin.strftime("%Y%m%d")))
+        f.write("time-unit            'minutes'\n")
+        f.write("interpolation        'linear'\n")
+        f.write("parameter            'time                '                     unit '[min]'\n")
+        f.write("parameter            'flux/discharge rate '                     unit '[m3/s]'\n")
+        f.write("parameter            'Temperature         '                     unit '[°C]'\n")
+        f.write("parameter            'flow magnitude      '                     unit '[m/s]'\n")
+        f.write("parameter            'flow direction      '                     unit '[deg]'\n")
+        f.write("records-in-table     {}\n ".format(str(len(inflow["data"]))))
+
+        df = inflow["data"]
+        df["flow_velocity"] = inflow["flow_velocity"]
+        df["flow_direction"] = inflow["flow_direction"]
+        df["minutes"] = (df["datetime"] - origin).astype('timedelta64[m]')
+        out = np.column_stack((df["minutes"], df["flow"], df["temperature"], df["flow_velocity"], df["flow_direction"]))
+        np.savetxt(f, out, fmt="%.7e", delimiter="   ", newline="\n ")
+
+    f.write("table-name           'Discharge : {}'\n".format(str(parameters["outflow"]["id"])))
+    f.write("contents             'regular  '\n")
+    f.write("location             '{}           '\n".format(parameters["outflow"]["name"]))
+    f.write("time-function        'non-equidistant'\n")
+    f.write("reference-time       {}\n".format(origin.strftime("%Y%m%d")))
+    f.write("time-unit            'minutes'\n")
+    f.write("interpolation        'linear'\n")
+    f.write("parameter            'time                '                     unit '[min]'\n")
+    f.write("parameter            'flux/discharge rate '                     unit '[m3/s]'\n")
+    f.write("parameter            'Temperature         '                     unit '[°C]'\n")
+    f.write("records-in-table     {}\n ".format(str(len(parameters["outflow"]["data"]))))
+
+    df = parameters["outflow"]["data"]
+    df["temperature"] = 6
+    df["minutes"] = (df["datetime"] - origin).astype('timedelta64[m]')
+    out = np.column_stack((df["minutes"], -df["flow"], df["temperature"]))
+    np.savetxt(f, out, fmt="%.7e", delimiter="   ", newline="\n ")
+
+    f.close()
+
+
+# OLD FUNCTIONS
 def get_water_level_change_flow_equivalent(df_wl, altitude, bathymetry):
     df_wl['level+'] = df_wl['level'].shift(-1)
     df_wl.iloc[-1, df_wl.columns.get_loc('level+')] = df_wl['level'].iloc[-1]
@@ -273,47 +360,4 @@ def estimate_flow_temperature(parameters, files, start_date, temperature="T_2M")
     return parameters
 
 
-def write_river_data_to_file(parameters, folder, filename="RiversOperationsQuantities.dis",
-                             origin=datetime(2008, 3, 1)):
-    f = open(os.path.join(folder, filename), "w")
-    for inflow in parameters["inflows"]:
-        f.write("table-name           'Discharge : {}'\n".format(str(inflow["id"])))
-        f.write("contents             'momentum'\n")
-        f.write("location             '{}'\n".format(inflow["name"]))
-        f.write("time-function        'non-equidistant'\n")
-        f.write("reference-time       {}\n".format(origin.strftime("%Y%m%d")))
-        f.write("time-unit            'minutes'\n")
-        f.write("interpolation        'linear'\n")
-        f.write("parameter            'time                '                     unit '[min]'\n")
-        f.write("parameter            'flux/discharge rate '                     unit '[m3/s]'\n")
-        f.write("parameter            'Temperature         '                     unit '[°C]'\n")
-        f.write("parameter            'flow magnitude      '                     unit '[m/s]'\n")
-        f.write("parameter            'flow direction      '                     unit '[deg]'\n")
-        f.write("records-in-table     {}\n ".format(str(len(inflow["data"]))))
 
-        df = inflow["data"]
-        df["flow_velocity"] = inflow["flow_velocity"]
-        df["flow_direction"] = inflow["flow_direction"]
-        df["minutes"] = (df["datetime"] - origin).astype('timedelta64[m]')
-        out = np.column_stack((df["minutes"], df["flow"], df["temperature"], df["flow_velocity"], df["flow_direction"]))
-        np.savetxt(f, out, fmt="%.7e", delimiter="   ", newline="\n ")
-
-    f.write("table-name           'Discharge : {}'\n".format(str(parameters["outflow"]["id"])))
-    f.write("contents             'regular  '\n")
-    f.write("location             '{}           '\n".format(parameters["outflow"]["name"]))
-    f.write("time-function        'non-equidistant'\n")
-    f.write("reference-time       {}\n".format(origin.strftime("%Y%m%d")))
-    f.write("time-unit            'minutes'\n")
-    f.write("interpolation        'linear'\n")
-    f.write("parameter            'time                '                     unit '[min]'\n")
-    f.write("parameter            'flux/discharge rate '                     unit '[m3/s]'\n")
-    f.write("parameter            'Temperature         '                     unit '[°C]'\n")
-    f.write("records-in-table     {}\n ".format(str(len(parameters["outflow"]["data"]))))
-
-    df = parameters["outflow"]["data"]
-    df["temperature"] = 6
-    df["minutes"] = (df["datetime"] - origin).astype('timedelta64[m]')
-    out = np.column_stack((df["minutes"], -df["flow"], df["temperature"]))
-    np.savetxt(f, out, fmt="%.7e", delimiter="   ", newline="\n ")
-
-    f.close()
