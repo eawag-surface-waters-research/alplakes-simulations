@@ -1,162 +1,261 @@
 {
-  "grid": {"minx": 490000, "miny": 110000, "maxx": 570000, "maxy": 160000, "dx": 1000, "dy": 1000},
-  "inflows": [
+  "grid": {
+    "minx": 490000,
+    "miny": 110000,
+    "maxx": 570000,
+    "maxy": 160000,
+    "dx": 1000,
+    "dy": 1000
+  },
+  "river_balance_method": "outflow_from_total_inflow",
+  "rivers": [
     {
-      "name": "Rhone",
-      "station_id": 2009,
-      "station_name": "Porte du Scex",
+      "name": "Rhone_SCEX",
+      "type": "inflow",
+      "stations": [
+        {
+          "id": 2009,
+          "factor": 1
+        }
+      ],
+      "velocity": 0.72,
+      "direction": 328.5,
+      "coordinates": [
+        46.35,
+        6.89
+      ],
+      "cell": [
+        172,
+        14,
+        64
+      ],
+      "average_monthly_temperature": [
+        5.4,
+        4.6,
+        5.9,
+        8.5,
+        8.9,
+        9.7,
+        9.9,
+        9.5,
+        9.2,
+        8.2,
+        6.7,
+        5.3
+      ]
+    },
+    {
+      "name": "Dranse",
+      "type": "inflow",
+      "stations": [],
+      "velocity": 0.6,
+      "direction": 1.0,
+      "coordinates": [
+        46.40,
+        6.51
+      ],
+      "cell": [
+        101,
+        10,
+        64
+      ],
+      "average_monthly_temperature": [
+        6.3,
+        7.0,
+        7.2,
+        8.4,
+        9.9,
+        11.0,
+        16.3,
+        17.6,
+        14.2,
+        8.2,
+        7.6,
+        6.2
+      ]
+    },
+    {
+      "name": "Aubonne",
+      "type": "inflow",
+      "stations": [
+        {
+          "id": 2433,
+          "factor": 1
+        }
+      ],
+      "velocity": 0.55,
+      "direction": 206,
+      "coordinates": [
+        46.40,
+        6.41
+      ],
+      "cell": [
+        82,
+        28,
+        64
+      ],
+      "average_monthly_temperature": [
+        6.3,
+        7.0,
+        7.2,
+        8.4,
+        9.9,
+        11.0,
+        16.3,
+        17.6,
+        14.2,
+        8.2,
+        7.6,
+        6.2
+      ]
+    },
+    {
+      "name": "Venoge",
+      "type": "inflow",
+      "stations": [
+        {
+          "id": 2432,
+          "factor": 1
+        }
+      ],
+      "velocity": 0.11,
+      "direction": 166.5,
+      "coordinates": [
+        46.54,
+        6.55
+      ],
+      "cell": [
+        107,
+        33,
+        82
+      ],
+      "average_monthly_temperature": [
+        4.7,
+        5.6,
+        7.9,
+        9.8,
+        11.7,
+        16.0,
+        19.5,
+        17.9,
+        16.2,
+        12.3,
+        8.9,
+        7.3
+      ]
+    },
+    {
+      "name": "Rhone_GVA",
+      "type": "outflow",
+      "stations": [],
+      "coordinates": [
+        46.21,
+        6.15
+      ],
+      "cell": [
+        2,
+        21,
+        95
+      ]
+    }
+  ],
+  "stations": [
+    {
+      "id": 2009,
+      "name": "Porte du Scex",
       "flow": {
-        "parameter":  "AbflussPneumatikunten",
+        "parameter": "AbflussPneumatikunten",
         "forecast": "C2E",
         "source": "BAFU",
         "unit": "m³/s",
         "min": 40,
         "max": 1400,
-        "velocity": 0.72,
-        "direction": 328.5,
-        "a": [
-          2.346817694,
-          0.2915251337,
-          0.6697524519,
-          0.4184471982,
-          6.381858231,
-          -1.941244923,
-          1.29E-02,
-          0.9316269389
-        ]
+        "download": true,
+        "forecast_method": "fixed"
       },
       "temperature": {
-        "parameter":  "Wassertemperatur1",
+        "parameter": "Wassertemperatur1",
         "unit": "°C",
         "min": 0,
         "max": 20,
-        "monthly": [5.4, 4.6, 5.9, 8.5, 8.9, 9.7, 9.9, 9.5, 9.2, 8.2, 6.7, 5.3]
-      },
-      "coordinates": [ 46.35, 6.89 ],
-      "cell": [ 172, 14, 64 ]
+        "download": true,
+        "forecast_method": "fixed"
+      }
     },
     {
-      "name": "Dranse",
+      "id": 2433,
+      "name": "Allaman, Le Coulet",
       "flow": {
-        "min": 2.1,
-        "max": 2000,
-        "contribution": 0.6722,
-        "velocity": 0.6,
-        "direction": 1.0,
-        "a": [
-          2.346817694,
-          0.2915251337,
-          0.6697524519,
-          0.4184471982,
-          6.381858231,
-          -1.941244923,
-          1.29E-02,
-          0.9316269389
-        ]
-      },
-      "temperature": {
-        "monthly":  [6.3, 7.0, 7.2, 8.4, 9.9, 11.0, 16.3, 17.6, 14.2, 8.2, 7.6, 6.2],
-        "unit": "°C"
-      },
-      "coordinates": [ 46.40,6.51 ],
-      "cell": [ 101, 10, 64 ]
-    },
-    {
-      "name": "Aubonne",
-      "station_id": 2433,
-      "station_name": "Allaman, Le Coulet",
-      "flow": {
-        "parameter":  "AbflussPneumatik",
+        "parameter": "AbflussPneumatik",
         "source": "BAFU",
         "unit": "m³/s",
         "min": 0.15,
         "max": 100,
-        "contribution": 0.1773,
-        "velocity": 0.55,
-        "direction": 206,
-        "a": [
-          2.346817694,
-          0.2915251337,
-          0.6697524519,
-          0.4184471982,
-          6.381858231,
-          -1.941244923,
-          1.29E-02,
-          0.9316269389
-        ]
+        "download": true,
+        "forecast_method": "fixed"
       },
       "temperature": {
-        "parameter":  "Wassertemperatur",
+        "parameter": "Wassertemperatur",
         "unit": "°C",
         "min": 0,
         "max": 20,
-        "monthly": [ 6.3, 7.0, 7.2, 8.4, 9.9, 11.0, 16.3, 17.6, 14.2, 8.2, 7.6, 6.2 ]
-      },
-      "coordinates": [ 46.40,6.41 ],
-      "cell": [ 82, 28, 64 ]
+        "download": true,
+        "forecast_method": "fixed"
+      }
     },
     {
-      "name": "Venoge",
-      "station_id": 2432,
-      "station_name": "Ecublens, Les Bois",
+      "id": 2432,
+      "name": "Ecublens, Les Bois",
       "flow": {
-        "parameter":  "AbflussRadar",
+        "parameter": "AbflussRadar",
         "source": "BAFU",
         "unit": "m³/s",
         "min": 0.28,
         "max": 120,
-        "contribution": 0.1505,
-        "velocity": 0.11,
-        "direction": 166.5,
-        "a": [
-          2.346817694,
-          0.2915251337,
-          0.6697524519,
-          0.4184471982,
-          6.381858231,
-          -1.941244923,
-          1.29E-02,
-          0.9316269389
-        ]
+        "download": true,
+        "forecast_method": "fixed"
       },
       "temperature": {
-        "parameter":  "Wassertemperatur1",
+        "parameter": "Wassertemperatur1",
         "unit": "°C",
         "min": 0,
         "max": 20,
-        "monthly": [ 4.7, 5.6, 7.9, 9.8, 11.7, 16.0, 19.5, 17.9, 16.2, 12.3, 8.9, 7.3 ]
-      },
-      "coordinates": [ 46.54, 6.55 ],
-      "cell": [ 107, 33, 82 ]
-    }
-  ],
-  "outflows": [
-    {
-    "name": "Rhone",
-    "station_id": 2606,
-    "station_name": "Genève, Halle de l'île",
-    "flow": {
-      "parameter":  "AbflussRisoniclinksvorRollout",
-      "source": "BAFU",
-      "unit": "m³/s",
-      "min": 20,
-      "max": 750,
-      "smooth": {"window":  12, "std": 2}
+        "download": true,
+        "forecast_method": "fixed"
       }
-    }
-  ],
-  "waterlevels": [
+    },
     {
-    "name": "Lac Léman",
-    "station_id": 2027,
-    "station_name": "St-Prex",
-    "level": {
-      "parameter": "PegelPneumatik",
-      "source": "BAFU",
-      "unit": "m",
-      "min": 371,
-      "max": 373,
-      "smooth": {"window":  144, "std": 32}
+      "id": 2606,
+      "name": "Genève, Halle de l'île",
+      "flow": {
+        "parameter": "AbflussRisoniclinksvorRollout",
+        "source": "BAFU",
+        "unit": "m³/s",
+        "min": 20,
+        "max": 750,
+        "smooth": {
+          "window": 12,
+          "std": 2
+        },
+        "download": false,
+        "forecast_method": "fixed"
+      }
+    },
+    {
+      "id": 2027,
+      "name": "St-Prex",
+      "level": {
+        "parameter": "PegelPneumatik",
+        "source": "BAFU",
+        "unit": "m",
+        "min": 371,
+        "max": 373,
+        "smooth": {
+          "window": 144,
+          "std": 32
+        },
+        "download": false,
+        "forecast_method": "fixed"
       }
     }
   ],

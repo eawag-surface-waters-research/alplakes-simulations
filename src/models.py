@@ -209,22 +209,24 @@ class Delft3D(object):
             raise
 
     def river_data_files(self, pre_days=7, post_days=2):
-        """For creating river files you need at a minimum recorded water level and outflow"""
         try:
-            self.log.begin_stage("Creating river data files.")
-            if "inflows" not in self.properties:
+            self.log.begin_stage("Creating river data file.")
+            if "rivers" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
                 start = self.params["start"] - timedelta(days=pre_days)
                 end = self.params["end"]
                 if self.params["end"].strftime("%Y%m%d") == self.params["today"].strftime("%Y%m%d") or self.params["end"] > self.params["today"]:
-                    self.log.info("Requested timeframe exceeds available data data from {} to {} will be forecast."
+                    self.log.info("Requested timeframe exceeds available data, data from {} to {} will be forecast."
                                   .format(self.params["today"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d")), indent=1)
                     forecast = True
                 else:
                     if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
                         end = self.params["end"] + timedelta(days=post_days)
                     forecast = False
+
+                self.log.info("Generating empty arrays", indent=1)
+                self.properties = river.empty_arrays(self.properties, self.params["start"], self.params["end"])
 
                 self.log.info("Collecting river data from {} to {}".format(start, end), indent=1)
                 self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"], self.params["today"], log=self.log)
@@ -236,12 +238,11 @@ class Delft3D(object):
                     self.log.info("Forcasting beyond measured data.", indent=1)
                     self.properties = river.forecast(self.properties, log=self.log)
 
-                self.log.info("Calculate flows for ungauged inputs and calculate flow balance.", indent=1)
+                self.log.info("Map station data to rivers and compute flow balance.", indent=1)
                 self.properties = river.flow_balance(self.properties, log=self.log)
 
                 self.log.info("Write river data to files.", indent=1)
-                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir, self.params["start"], self.params["end"], log=self.log)
-
+                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir, log=self.log)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
