@@ -42,7 +42,7 @@ class Delft3D(object):
         self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24) - timedelta(seconds=1)))
 
     def process(self):
-        self.initialise_simulation_directory(remove=False)
+        self.initialise_simulation_directory()
         self.copy_static_data()
         self.collect_restart_file()
         self.load_properties()
