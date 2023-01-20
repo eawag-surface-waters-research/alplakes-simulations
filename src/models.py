@@ -42,7 +42,7 @@ class Delft3D(object):
         self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24) - timedelta(seconds=1)))
 
     def process(self):
-        self.initialise_simulation_directory(remove=True)
+        self.initialise_simulation_directory()
         self.copy_static_data()
         self.collect_restart_file()
         self.load_properties()
@@ -193,9 +193,8 @@ class Delft3D(object):
                 maxx, maxy = ch1903_to_latlng(maxx, maxy)
 
             self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy), indent=1)
-            variables = [file["parameter"] for file in self.files]
-
             self.log.info("Writing weather data to simulation files.", indent=1)
+            variables = [file["parameter"] for file in self.files]
             days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
             for day in days:
                 self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
@@ -210,40 +209,40 @@ class Delft3D(object):
             raise
 
     def river_data_files(self, pre_days=7, post_days=2):
-        """For creating river files you need at a minimum recorded water level and outflow"""
         try:
-            self.log.begin_stage("Creating river data files.")
-            if "inflows" not in self.properties:
+            self.log.begin_stage("Creating river data file.")
+            if "rivers" not in self.properties:
                 self.log.warning("No river params specified, skipping stage.", indent=1)
             else:
                 start = self.params["start"] - timedelta(days=pre_days)
-                if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
-                    end = self.params["end"] + timedelta(days=post_days)
+                end = self.params["end"]
+                if self.params["end"].strftime("%Y%m%d") == self.params["today"].strftime("%Y%m%d") or self.params["end"] > self.params["today"]:
+                    self.log.info("Requested timeframe exceeds available data, data from {} to {} will be forecast."
+                                  .format(self.params["today"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d")), indent=1)
+                    forecast = True
                 else:
-                    end = self.params["end"]
+                    if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
+                        end = self.params["end"] + timedelta(days=post_days)
+                    forecast = False
+
+                self.log.info("Generating empty arrays", indent=1)
+                self.properties = river.empty_arrays(self.properties, self.params["start"], self.params["end"])
+
                 self.log.info("Collecting river data from {} to {}".format(start, end), indent=1)
                 self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"], self.params["today"], log=self.log)
 
                 self.log.info("Cleaning, smoothing and resampling downloaded data.", indent=1)
                 self.properties = river.clean_smooth_resample(self.properties, start, end, log=self.log)
 
-                self.log.info("Forcasting beyond measured data.", indent=1)
-                self.properties = river.forecast(self.properties, start, end, log=self.log)
+                if forecast:
+                    self.log.info("Forcasting beyond measured data.", indent=1)
+                    self.properties = river.forecast(self.properties, log=self.log)
 
+                self.log.info("Map station data to rivers and compute flow balance.", indent=1)
+                self.properties = river.flow_balance(self.properties, self.simulation_dir, log=self.log)
 
-                """
-                self.log.info("Flow balance ungauged rivers.", indent=2)
-                self.properties = flow_balance_ungauged_rivers(self.properties)
-                self.log.info("Estimate flow temperatures using meteoswiss data.", indent=2)
-                files = list_local_cosmo_files(self.parameters["weather_data"], self.parameters["start_date"],
-                                               self.parameters["end_date"])
-                self.log.info("Located {} local meteo files covering the full simulation period.".format(len(files)),
-                              indent=3)
-                self.properties = estimate_flow_temperature(self.properties, files, self.parameters["start_date"])
-                verify_flow_balance(self.properties)
-                self.log.info("Writing data to file.", indent=2)
-                write_river_data_to_file(self.properties, self.parameters["simulation_folder"])
-                """
+                self.log.info("Write river data to files.", indent=1)
+                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir)
             self.log.end_stage()
         except Exception as e:
             self.log.error()

@@ -1,107 +1,137 @@
 {
-  "grid": {"minx": 677600, "miny": 225663, "maxx": 719550, "maxy": 249912, "dx": 500, "dy": 500},
-  "inflows": [
+  "grid": {
+    "minx": 677600,
+    "miny": 225663,
+    "maxx": 719550,
+    "maxy": 249912,
+    "dx": 500,
+    "dy": 500
+  },
+  "dt": 10,
+  "origin": "20080301",
+  "river_balance_method": "outflow_from_total_inflow",
+  "rivers": [
     {
       "name": "Linth",
-      "id": 1,
-      "folder": "Linth",
-      "prefix": "BAFU2104_",
-      "flow": "Flow [m³/s]",
-      "min_flow": 12.8,
-      "temperature": "Temperature [°C]",
-      "a": [
-        2.346817694,
-        0.2915251337,
-        0.6697524519,
-        0.4184471982,
-        6.381858231,
-        -1.941244923,
-        1.29E-02,
-        0.9316269389
+      "type": "inflow",
+      "stations": [
+        {
+          "id": 2104,
+          "factor": 1
+        }
       ],
+      "velocity": 0.5,
+      "direction": 280,
       "coordinates": [
-        47.132,9.088
+        47.132,
+        9.088
       ],
       "cell": [
         210,
         22,
         68
       ],
-      "flow_velocity": 0.5,
-      "flow_direction": 280
+      "average_monthly_temperature":
+      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
     },
-    {
+{
       "name": "Jona",
-      "id": 2,
-      "a": [
-        2.346817694,
-        0.2915251337,
-        0.6697524519,
-        0.4184471982,
-        6.381858231,
-        -1.941244923,
-        1.29E-02,
-        0.9316269389
-      ],
-      "contribution": 0.5,
+      "type": "inflow",
+      "stations": [],
+      "velocity": 0.5,
+      "direction": 180,
       "coordinates": [
-        47.217,8.845
+        47.217,
+        8.845
       ],
       "cell": [
         171,
         19,
         68
       ],
-      "flow_velocity": 0.5,
-      "flow_direction": 180
-    },
-    {
+      "average_monthly_temperature":
+      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
+    },{
       "name": "Wagitaler",
-      "id": 3,
-      "a": [
-        2.346817694,
-        0.2915251337,
-        0.6697524519,
-        0.4184471982,
-        6.381858231,
-        -1.941244923,
-        1.29E-02,
-        0.9316269389
-      ],
-      "contribution": 0.5,
+      "type": "inflow",
+      "stations": [],
+      "velocity": 0.5,
+      "direction": 330,
       "coordinates": [
-        47.203,8.852
+        47.203,
+        8.852
       ],
       "cell": [
         175,
         12,
         68
       ],
-      "flow_velocity": 0.5,
-      "flow_direction": 330
-    }
-  ],
-  "outflow": {
-    "name": "Limmat",
-    "id": 4,
-    "folder": "Limmat",
-    "prefix": "BAFU2099_",
-    "flow": "Flow [m³/s]",
-    "min_flow": 24,
-    "coordinates": [
-      47.368,8.543
-    ],
-    "cell": [
-      2,
+      "average_monthly_temperature":
+      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
+    },
+    {
+      "name": "Limmat",
+      "type": "outflow",
+      "stations": [],
+      "coordinates": [
+        47.368,
+        8.543
+      ],
+      "cell": [
+        2,
       18,
       71
-    ]
-  },
-  "waterlevel": {
-    "folder": "Zurichsee",
-    "prefix": "BAFU2209_",
-    "level": "Level [m a.s.l.]"
-  },
+      ],
+      "temperature": 6.0
+    }
+  ],
+  "stations": [
+    {
+      "id": 2104,
+      "name": "Weesen, Biäsche",
+      "flow": {
+        "parameter": "AbflussPneumatik",
+        "forecast": "C2E",
+        "source": "BAFU",
+        "unit": "m³/s",
+        "min": 12,
+        "max": 300,
+        "download": true,
+        "forecast_method": "fixed"
+      },
+      "temperature": {
+        "parameter": "Wassertemperatur",
+        "unit": "°C",
+        "min": 0,
+        "max": 30,
+        "download": true,
+        "forecast_method": "fixed"
+      }
+    },
+    {
+      "id": 2099,
+      "name": "Zürich, Unterhard",
+      "flow": {
+        "parameter": "AbflussDrucksondeGewaesser",
+        "forecast": "C2E",
+        "source": "BAFU",
+        "unit": "m³/s",
+        "min": 22,
+        "max": 600,
+        "download": false,
+        "forecast_method": "fixed"
+      },
+      "level": {
+        "parameter": "PegelDrucksondeGewaesser",
+        "source": "BAFU",
+        "unit": "m",
+        "min": 399,
+        "max": 401,
+        "download": false,
+        "forecast_method": "fixed"
+      }
+    }
+  ],
   "altitude": 406,
   "bathymetry": {
     "depth": [
