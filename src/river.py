@@ -44,7 +44,10 @@ def monthly_temperature(time, average_temperature):
 def download_bafu_hydrodata_measured(api, station_id, parameter, start_date, end_date, log):
     # /bafu/hydrodata/measured/{station_id}/{parameter}/{start_date}/{end_date}
     query = "{}/bafu/hydrodata/measured/{}/{}/{}/{}".format(api, station_id, parameter, start_date, end_date)
-    response = requests.get(query)
+    try:
+        response = requests.get(query)
+    except:
+        raise ValueError("No response from Alplakes API, run failed.")
     if response.status_code == 200:
         return response.json()
     else:
@@ -203,15 +206,60 @@ def forecast_fixed(df):
     return df
 
 
-def flow_balance(parameters, log=logger):
+def flow_balance(parameters, folder, log=logger, plot=False):
     if parameters["river_balance_method"] == "outflow_from_total_inflow":
-        log.info("Calculate outflow based on total inflows and set emtpy inflows to 0.", indent=2)
-        for river in parameters["rivers"]:
-            if len(river["stations"]) == 0:
-                continue
-
+        parameters = outflow_from_total_inflow(parameters, folder, log, plot)
     else:
         raise ValueError("Unrecognised flow balance method: {}".format(parameters["river_balance_method"]))
+    return parameters
+
+
+def outflow_from_total_inflow(parameters, folder, log, plot):
+    log.info("Calculate outflow based on total inflows and set emtpy inflows to 0.", indent=2)
+    time = parameters["rivers"][0]["data"]["time"]
+    outflow = np.zeros(len(time))
+    for river in parameters["rivers"]:
+        if len(river["stations"]) == 0:
+            continue
+        flow = np.zeros(len(time))
+        temperature = []
+        for station in river["stations"]:
+            station_data = next(item for item in parameters["stations"] if item["id"] == station["id"])
+            if "flow" in station_data and "data" in station_data["flow"]:
+                df = pd.DataFrame(time.copy())
+                df.columns = ["ds"]
+                df = df.merge(station_data["flow"]["data"], on='ds', how='left')
+                f = np.array(df["y"])
+                flow[~np.isnan(f)] = flow[~np.isnan(f)] + (f[~np.isnan(f)] * station["factor"])
+            if "temperature" in station_data and "data" in station_data["temperature"]:
+                df = pd.DataFrame(time.copy())
+                df.columns = ["ds"]
+                df = df.merge(station_data["temperature"]["data"], on='ds', how='left')
+                temperature.append(np.array(df["y"]))
+        temperature = np.array(temperature)
+        temperature = np.nanmean(temperature, axis=0)
+        out_temperature = np.array(river["data"]["temperature"])
+        out_temperature[~np.isnan(temperature)] = temperature[~np.isnan(temperature)]
+        river["data"]["temperature"] = temperature
+        river["data"]["flow"] = flow
+        outflow = outflow + flow
+    for river in parameters["rivers"]:
+        if river["type"] == "outflow":
+            river["data"]["flow"] = outflow
+
+    log.info("Generating plot of river inputs and outputs.", indent=2)
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    fig.suptitle('Model river inputs.')
+    ax1.title.set_text('Flow (m3/s)')
+    ax2.title.set_text('Temperature (°C)')
+    for river in parameters["rivers"]:
+        ax1.plot(river["data"]["time"], river["data"]["flow"], label="{} ({})".format(river["name"], river["type"]))
+        ax2.plot(river["data"]["time"], river["data"]["temperature"], label="{} ({})".format(river["name"], river["type"]))
+    plt.legend()
+    fig.set_size_inches(18.5, 10.5)
+    plt.savefig(os.path.join(folder, "river_inputs.png"))
+    if plot:
+        plt.show()
     return parameters
 
 

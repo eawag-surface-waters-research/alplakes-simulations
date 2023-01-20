@@ -43,11 +43,11 @@ class Delft3D(object):
 
     def process(self):
         self.initialise_simulation_directory(remove=False)
-        # self.copy_static_data()
-        # self.collect_restart_file()
+        self.copy_static_data()
+        self.collect_restart_file()
         self.load_properties()
-        # self.update_control_file()
-        # self.weather_data_files()
+        self.update_control_file()
+        self.weather_data_files()
         self.river_data_files()
         if self.params["upload"]:
             self.upload_data()
@@ -239,10 +239,10 @@ class Delft3D(object):
                     self.properties = river.forecast(self.properties, log=self.log)
 
                 self.log.info("Map station data to rivers and compute flow balance.", indent=1)
-                self.properties = river.flow_balance(self.properties, log=self.log)
+                self.properties = river.flow_balance(self.properties, self.simulation_dir, log=self.log)
 
                 self.log.info("Write river data to files.", indent=1)
-                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir, log=self.log)
+                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir)
             self.log.end_stage()
         except Exception as e:
             self.log.error()

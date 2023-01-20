@@ -7,6 +7,8 @@
     "dx": 1000,
     "dy": 1000
   },
+  "dt": 10,
+  "origin": "20080301",
   "river_balance_method": "outflow_from_total_inflow",
   "rivers": [
     {
@@ -156,7 +158,8 @@
         2,
         21,
         95
-      ]
+      ],
+      "temperature": 6.0
     }
   ],
   "stations": [
@@ -177,7 +180,7 @@
         "parameter": "Wassertemperatur1",
         "unit": "°C",
         "min": 0,
-        "max": 20,
+        "max": 30,
         "download": true,
         "forecast_method": "fixed"
       }
@@ -198,7 +201,7 @@
         "parameter": "Wassertemperatur",
         "unit": "°C",
         "min": 0,
-        "max": 20,
+        "max": 30,
         "download": true,
         "forecast_method": "fixed"
       }
@@ -219,7 +222,7 @@
         "parameter": "Wassertemperatur1",
         "unit": "°C",
         "min": 0,
-        "max": 20,
+        "max": 30,
         "download": true,
         "forecast_method": "fixed"
       }
