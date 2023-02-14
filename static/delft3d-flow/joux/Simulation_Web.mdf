@@ -1,0 +1,215 @@
+Ident  = #Delft3D-FLOW 3.59.01.57433#
+Commnt =
+Runtxt = #Lac de Joux#
+         #Calibrated for 2020#
+         #15/04/2020 until 30/11/2020#
+Filcco = #RGFGRID_V0.2.2.grd#
+Anglat =  4.6600000e+001
+Grdang =  0.0000000e+000
+Filgrd = #RGFGRID_V0.2.2.enc#
+MNKmax = 153 22 50
+Thick  = 5.0000000000e-01
+         6.0000000000e-01
+         7.0000000000e-01
+         8.0000000000e-01
+         9.0000000000e-01
+         1.0000000000e+00
+         1.1000000000e+00
+         1.2000000000e+00
+         1.3000000000e+00
+         1.4000000000e+00
+         1.5000000000e+00
+         1.6000000000e+00
+         1.7000000000e+00
+         1.8000000000e+00
+         1.9000000000e+00
+         2.0000000000e+00
+         2.1000000000e+00
+         2.2000000000e+00
+         2.4000000000e+00
+         2.7000000000e+00
+         3.0000000000e+00
+         3.5000000000e+00
+         4.0000000000e+00
+         4.5000000000e+00
+         4.8000000000e+00
+         5.1575000000e+00
+         4.8000000000e+00
+         4.5000000000e+00
+         4.0000000000e+00
+         3.5000000000e+00
+         3.0000000000e+00
+         2.7000000000e+00
+         2.5000000000e+00
+         2.2000000000e+00
+         2.0650000000e+00
+         1.9600000000e+00
+         1.8500000000e+00
+         1.7500000000e+00
+         1.6400000000e+00
+         1.5400000000e+00
+         1.4375000000e+00
+         1.2000000000e+00
+         1.0000000000e+00
+         8.0000000000e-01
+         7.0000000000e-01
+         5.0000000000e-01
+         5.0000000000e-01
+         5.0000000000e-01
+         5.0000000000e-01
+         5.0000000000e-01
+Commnt =
+Fildep = #lac_de_joux_interpolated.dep#
+Commnt =
+Commnt =                 no. dry points: 0
+Commnt =                 no. thin dams: 0
+Commnt =
+Itdate = #2020-04-15#
+Tunit  = #M#
+Tstart =  0
+Tstop  =  2.8800000e+005
+Dt     = 1
+Tzone  = 0
+Commnt =
+Sub1   = # TW #
+Sub2   = #   #
+Commnt =
+Wnsvwp = #Y#
+Wndint = #Y#
+Commnt =
+Zeta0  =  0.0000000e+000
+T0     = 5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.1930000000
+         5.4210000000
+         5.4210000000
+         5.4210000000
+         5.4210000000
+         5.4210000000
+         5.4210000000
+         5.4210000000
+         5.6943333333
+         5.6943333333
+         5.6943333333
+         5.6943333333
+         5.6943333333
+         5.9343333333
+         5.9343333333
+         5.9343333333
+         6.0356666667
+         6.0356666667
+         6.0356666667
+         6.0540000000
+         6.0540000000
+         6.0540000000
+         6.1713333333
+         6.1713333333
+         6.1713333333
+         6.1713333333
+         6.1713333333
+         6.1713333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+         6.2033333333
+Commnt =
+Commnt =                 no. open boundaries: 0
+Commnt =
+Ag     =  9.8100000e+000
+Rhow   =  1.0000000e+003
+Tempw  =  1.5000000e+001
+Salw   =  2.0000000e-001
+Wstres =  2.6474475e-03 5.0000000e-01 6.0169261e-04 4.5000000e+00 1.2033852e-03 1.0000000e+01
+Rhoa   =  1.0000000e+000
+Equili = #N#
+Tkemod = #K-epsilon   #
+Ktemp  = 5
+Filscc= #Secchi.scc#
+Temint = #Y#
+Commnt =
+Roumet = #C#
+Ccofu  =  6.0000000e+001
+Ccofv  =  6.0000000e+001
+Xlo    =  2.0000000e-002
+cfrconv=  1.2878147e-001
+Vicouv =  2.7902832e-002
+Dicouv =  3.1571060e+000
+Htur2d = #N#
+Vicoww =  1.0000000e-006
+Dicoww =  1.0000000e-009
+Irov   = 0
+Commnt =
+Iter   =      2
+Dryflp = #YES#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =  1.0000000e-001
+Dco    = -9.9900000e+002
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #Cyclic-method#
+Momsol = #Cyclic#
+Commnt =
+Commnt =                 no. discharges: 0
+Commnt =                 no. observation points: 1
+Filsta = #Thermo-Probe.obs#
+Commnt =                 no. drogues: 0
+Commnt =
+Commnt =
+Commnt =                 no. cross sections: 0
+Commnt =
+SMhydr = #YYYYY#
+SMderv = #YYYYYY#
+SMproc = #YYYYYYYYYY#
+PMhydr = #YYYYYY#
+PMderv = #YYY#
+PMproc = #YYYYYYYYYY#
+SHhydr = #YYYY#
+SHderv = #YYYYY#
+SHproc = #YYYYYYYYYY#
+SHflux = #YYYY#
+PHhydr = #YYYYYY#
+PHderv = #YYY#
+PHproc = #YYYYYYYYYY#
+PHflux = #YYYY#
+Flmap  =  6.0000000e+001 1.4400000e+003  2.8800000e+005
+Flhis  =  0.0000000e+000 60  2.8800000e+005
+Flpp   =  0.0000000e+000 0  2.8800000e+005
+Flrst  = 1.4400000e+003
+Commnt =
+Online = #N#
+Zmodel = #Y#
+Zbot   = -30
+Ztop   = +1
+AirOut = #Y#
+HeaOut = #Y#
+Filwp  = #Pressure.amp#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Filws  = #ShortwaveFlux.ams#
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+Anglon = 6.3
+Commnt =
+Wslake = 1
+sdlake = 1
+ncFormat = 4
+FlNcdf = #map#
