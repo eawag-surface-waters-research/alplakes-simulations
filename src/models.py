@@ -2,14 +2,16 @@
 import os
 import json
 import shutil
-import numpy as np
 import subprocess
+import numpy as np
+from distutils.dir_util import copy_tree
+from datetime import datetime, timedelta
 
 import river
+import secchi
 import weather
-from datetime import datetime, timedelta
 from functions import logger, list_local_cosmo_files, ch1903_to_latlng, download_file, upload_file
-from distutils.dir_util import copy_tree
+
 
 
 class Delft3D(object):
@@ -48,6 +50,7 @@ class Delft3D(object):
         self.load_properties()
         self.update_control_file()
         self.weather_data_files()
+        self.secchi_data_files()
         self.river_data_files()
         if self.params["upload"]:
             self.upload_data()
@@ -90,6 +93,9 @@ class Delft3D(object):
             self.log.begin_stage("Collecting restart file.")
             self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
             components = self.params["model"].split("/")
+            if self.params["no_restart"]:
+                self.log.info("No restart file, initial conditions must be specified in .mdf file.", indent=1)
+                return
             if self.params["restart"]:
                 self.log.info("Copying restart file from local storage.", indent=1)
                 file = self.params["restart"]
@@ -203,6 +209,48 @@ class Delft3D(object):
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir, no_data_value)
 
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def secchi_data_files(self, no_data_value="-999.00"):
+        try:
+            self.log.begin_stage("Creating secchi data file.")
+            if "secchi" not in self.properties:
+                self.log.warning("No secchi params specified, skipping stage.", indent=1)
+            else:
+                self.log.info("Creating the secchi grid", indent=1)
+                grid = self.properties["grid"]
+                minx, miny, maxx, maxy = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"]
+                gx = np.arange(minx, maxx + grid["dx"], grid["dx"])
+                gy = np.arange(miny, maxy + grid["dy"], grid["dy"])
+
+                self.log.info("Initialise the output secchi file and write the header", indent=1)
+                file = os.path.join(self.simulation_dir, "Secchi.scc")
+                with open(file, "w") as f:
+                    f.write('FileVersion = 1.03')
+                    f.write('\nfiletype = meteo_on_equidistant_grid')
+                    f.write('\nNODATA_value = ' + str(no_data_value))
+                    f.write('\nn_cols = ' + str(len(gx)))
+                    f.write('\nn_rows = ' + str(len(gy)))
+                    f.write('\ngrid_unit = m')
+                    f.write('\nx_llcenter = ' + str(gx[0]))
+                    f.write('\ny_llcenter = ' + str(gy[0]))
+                    f.write('\ndx = ' + str(grid["dx"]))
+                    f.write('\ndy = ' + str(grid["dy"]))
+                    f.write('\nn_quantity = 1')
+                    f.write('\nquantity1 = Secchi_depth')
+                    f.write('\nunit1 = m' + '\n')
+
+                if "monthly" in self.properties["secchi"]:
+                    self.log.info("Writing fixed value for secchi depth", indent=1)
+                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], self.params["start"], self.params["end"], len(gx), len(gy))
+                elif "fixed" in self.properties["secchi"]:
+                    self.log.info("Writing fixed value for secchi depth", indent=1)
+                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], self.params["start"], self.params["end"], len(gx), len(gy))
+                else:
+                    raise ValueError("No method specified for generating secchi input file.")
             self.log.end_stage()
         except Exception as e:
             self.log.error()
