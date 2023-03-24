@@ -137,7 +137,7 @@ class Delft3D(object):
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'r') as f:
                 lines = f.readlines()
             start = "{:.7e}".format((self.params["start"] - origin).total_seconds() / 60)
-            end = "{:.7e}".format(((self.params["end"] - origin).total_seconds() / 60) - period)
+            end = "{:.7e}".format((((self.params["end"] + timedelta(days=1)) - origin).total_seconds() / 60) - period)
 
             for i in range(len(lines)):
                 if "Restid" in lines[i]:
