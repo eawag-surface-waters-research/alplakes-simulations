@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, list_local_cosmo_files, ch1903_to_latlng, download_file, upload_file
+from functions import logger, ch1903_to_latlng, download_file, upload_file
 
 
 
@@ -41,7 +41,7 @@ class Delft3D(object):
         if "model" in params and "docker" in params:
             self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
-        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] + timedelta(hours=24) - timedelta(seconds=1)))
+        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] - timedelta(seconds=1)))
 
     def process(self):
         self.initialise_simulation_directory()
@@ -137,7 +137,7 @@ class Delft3D(object):
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'r') as f:
                 lines = f.readlines()
             start = "{:.7e}".format((self.params["start"] - origin).total_seconds() / 60)
-            end = "{:.7e}".format((((self.params["end"] + timedelta(days=1)) - origin).total_seconds() / 60) - period)
+            end = "{:.7e}".format(((self.params["end"] - origin).total_seconds() / 60) - period)
 
             for i in range(len(lines)):
                 if "Restid" in lines[i]:
