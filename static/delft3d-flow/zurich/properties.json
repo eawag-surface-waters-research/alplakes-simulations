@@ -7,10 +7,12 @@
     "dx": 500,
     "dy": 500
   },
-   "secchi" : {
-     "fixed":  2.8,
-     "monthly":  [2.50, 2.59, 2.51, 2.63, 2.31, 2.77, 4.18, 2.96, 2.50, 2.56, 2.66, 3.25]
-   },
+  "secchi": {
+    "fixed": 2.8,
+    "monthly": [
+      2.5, 2.59, 2.51, 2.63, 2.31, 2.77, 4.18, 2.96, 2.5, 2.56, 2.66, 3.25
+    ]
+  },
   "dt": 10,
   "origin": "20080301",
   "river_balance_method": "outflow_from_total_inflow",
@@ -26,66 +28,42 @@
       ],
       "velocity": 0.5,
       "direction": 280,
-      "coordinates": [
-        47.132,
-        9.088
-      ],
-      "cell": [
-        210,
-        22,
-        68
-      ],
-      "average_monthly_temperature":
-      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
+      "coordinates": [47.132, 9.088],
+      "cell": [210, 22, 68],
+      "average_monthly_temperature": [
+        6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7
+      ]
     },
-{
+    {
       "name": "Jona",
       "type": "inflow",
       "stations": [],
       "velocity": 0.5,
       "direction": 180,
-      "coordinates": [
-        47.217,
-        8.845
-      ],
-      "cell": [
-        171,
-        19,
-        68
-      ],
-      "average_monthly_temperature":
-      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
-    },{
+      "coordinates": [47.217, 8.845],
+      "cell": [171, 19, 68],
+      "average_monthly_temperature": [
+        6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7
+      ]
+    },
+    {
       "name": "Wagitaler",
       "type": "inflow",
       "stations": [],
       "velocity": 0.5,
       "direction": 330,
-      "coordinates": [
-        47.203,
-        8.852
-      ],
-      "cell": [
-        175,
-        12,
-        68
-      ],
-      "average_monthly_temperature":
-      [6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7]
+      "coordinates": [47.203, 8.852],
+      "cell": [175, 12, 68],
+      "average_monthly_temperature": [
+        6.6, 6.4, 6.7, 9.8, 12.9, 15.0, 17.7, 18.8, 16.9, 12.3, 10.0, 7.7
+      ]
     },
     {
       "name": "Limmat",
       "type": "outflow",
       "stations": [],
-      "coordinates": [
-        47.368,
-        8.543
-      ],
-      "cell": [
-        2,
-      18,
-      71
-      ],
+      "coordinates": [47.368, 8.543],
+      "cell": [2, 18, 71],
       "temperature": 6.0
     }
   ],
@@ -138,15 +116,7 @@
   ],
   "altitude": 406,
   "bathymetry": {
-    "depth": [
-      0,
-      5,
-      50
-    ],
-    "area": [
-      88660000,
-      88660000,
-      88660000
-    ]
+    "depth": [0, 5, 50],
+    "area": [88660000, 88660000, 88660000]
   }
 }
