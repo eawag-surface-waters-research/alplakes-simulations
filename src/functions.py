@@ -7,7 +7,25 @@ import traceback
 import numpy as np
 import pandas as pd
 from requests import get
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def convert_to_unit(time, units):
+    if units == "seconds since 2008-03-01 00:00:00":
+        return (time.replace(tzinfo=timezone.utc) - datetime(2008, 3, 1).replace(tzinfo=timezone.utc)).total_seconds()
+    elif units == "seconds since 1970-01-01 00:00:00":
+        return time.timestamp()
+    else:
+        raise ValueError("Unrecognised time unit.")
+
+
+def convert_from_unit(time, units):
+    if units == "seconds since 2008-03-01 00:00:00":
+        return datetime.utcfromtimestamp(time + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds())
+    elif units == "seconds since 1970-01-01 00:00:00":
+        return datetime.utcfromtimestamp(time)
+    else:
+        raise ValueError("Unrecognised time unit.")
 
 
 def upload_file(file_name, bucket, object_name=None):
