@@ -1,8 +1,7 @@
 Ident  = #Delft3D-FLOW 3.56.29165#
 Commnt =                  
-Runtxt = #Hydrodynamic model#
-         #No Rivers#
-         #Simulation for Meteolakes#
+Runtxt = #Lake Greifen#
+         #Developed for the Meteolakes project#
 Filcco = #greifen_grid.grd#
 Anglat =  4.7350000e+001
 Grdang =  0.0000000e+000
@@ -60,7 +59,7 @@ Thick  =  1.6700000e+000
           6.7000000e-001
           6.7000000e-001
 Commnt =                  
-Fildep = #greifen_grid_inverse.dep#
+Fildep = #greifen_depths.dep#
 Commnt =                  
 Commnt =                 no. dry points: 0
 Commnt =                 no. thin dams: 0
@@ -135,7 +134,7 @@ Momsol = #Cyclic#
 Commnt =                  
 Commnt =                 no. discharges: 0
 Commnt =                 no. observation points: 2
-Filsta = #Observation_points.obs#
+Filsta = #greifen_observation_points.obs#
 Commnt =                 no. drogues: 0
 Commnt =                  
 Commnt =                  
@@ -163,6 +162,7 @@ Flrst  = 10080
 Commnt =                  
 Online = #N#
 Anglon = 8.7
+Filscc = #Secchi.scc#
 Filwp  = #Pressure.amp#
 Filwu  = #WindU.amu#
 Filwv  = #WindV.amv#

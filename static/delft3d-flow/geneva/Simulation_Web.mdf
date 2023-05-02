@@ -1,15 +1,11 @@
 Ident  = #Delft3D-FLOW 3.56.29165#
 Commnt =                  
 Runtxt = #Lake Geneva#
-         #Curvilinear grid#
-         #100 z-layers#
-         #Simulation intended for web#
-         #updated:#
-         #WAQ coupling#
-Filcco = #Grid.grd#
+         #Developed for the Meteolakes project#
+Filcco = #genva_grid.grd#
 Anglat =  4.6300000e+001
 Grdang =  0.0000000e+000
-Filgrd = #GridEnclosure.enc#
+Filgrd = #geneva_grid_enclosure.enc#
 MNKmax = 182 36 100
 Thick  =  4.7458000e+000
           4.7458000e+000
@@ -112,7 +108,7 @@ Thick  =  4.7458000e+000
           8.4700000e-002
           1.6950000e-001
 Commnt =                  
-Fildep = #Bathymetry.dep#
+Fildep = #geneva_depths.dep#
 Commnt =                  
 Commnt =                 no. dry points: 0
 Commnt =                 no. thin dams: 0
@@ -186,10 +182,10 @@ Trasol = #Cyclic-method#
 Momsol = #Cyclic#
 Commnt =                  
 Commnt =                 no. discharges: 5
-Filsrc = #RiversOperations.src#
+Filsrc = #geneva_rivers_operations.src#
 Fildis = #RiversOperationsQuantities.dis#
 Commnt =                 no. observation points: 6
-Filsta = #ObservationPoints.obs#
+Filsta = #geneva_observation_points.obs#
 Commnt =                 no. drogues: 0
 Commnt =                  
 Commnt =                  
@@ -216,6 +212,7 @@ Flrst  = 10080
 Commnt =                  
 Online = #N#
 Anglon = 6.6000000e+000
+Filscc = #Secchi.scc#
 Filwp  = #Pressure.amp#
 Filwu  = #WindU.amu#
 Filwv  = #WindV.amv#

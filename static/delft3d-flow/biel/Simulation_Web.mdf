@@ -1,13 +1,11 @@
 Ident  = #Delft3D-FLOW 3.56.29165#
 Commnt =                  
-Runtxt = #Bielersee#
-         #Based on Love's last model#
-         #No Rivers#
-         #Simulation for Meteolakes#
-Filcco = #grid1_RiverAdapted.grd#
+Runtxt = #Lake Biel#
+         #Developed for the Meteolakes project#
+Filcco = #biel_grid.grd#
 Anglat =  4.7070000e+001
 Grdang =  0.0000000e+000
-Filgrd = #grid1_RiverAdapted.enc#
+Filgrd = #biel_grid_enclosure.enc#
 MNKmax = 132 28 100
 Thick  =  2.0600882e+000
           1.7725029e+000
@@ -110,11 +108,11 @@ Thick  =  2.0600882e+000
           2.7327778e-001
           2.7327778e-001
 Commnt =                  
-Fildep = #MultiLidar_CorseGrid_Depth.dep#
+Fildep = #biel_depths.dep#
 Commnt =                  
 Commnt =                 no. dry points: 0
 Commnt =                 no. thin dams: 6
-Filtd  = #HarbourBiel.thd#
+Filtd  = #biel_thin_dams.thd#
 Commnt =                  
 Itdate = #2008-03-01#
 Tunit  = #M#
@@ -186,12 +184,12 @@ Momsol = #Cyclic#
 Commnt =                  
 Commnt =                 no. discharges: 0
 Commnt =                 no. observation points: 10
-Filsta = #ObservationPoints.obs#
+Filsta = #biel_observation_points.obs#
 Commnt =                 no. drogues: 0
 Commnt =                  
 Commnt =                  
 Commnt =                 no. cross sections: 7
-Filcrs = #csections.crs#
+Filcrs = #biel_cross_sections.crs#
 Commnt =                  
 SMhydr = #YYYYY#     
 SMderv = #YYYYYY#    
@@ -218,6 +216,7 @@ Zbot   = -75
 Ztop   = 0
 Anglon = 7.167
 HeaOut = #true#
+Filscc = #Secchi.scc#
 Filwt  = #Temperature.amt#
 Filwr  = #RelativeHumidity.amr#
 Filwc  = #CloudCoverage.amc#

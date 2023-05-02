@@ -1,12 +1,11 @@
 Ident  = #Delft3D-FLOW 3.56.29165#
 Commnt =                  
-Runtxt = #Lake Zurich (both basins)#
-         #Meteolakes#
-         #2019 implementation#
-Filcco = #grid_180x200.grd#
+Runtxt = #Lake Zurich#
+         #Developed for the Meteolakes project#
+Filcco = #zurich_grid.grd#
 Anglat =  4.7220000e+001
 Grdang =  0.0000000e+000
-Filgrd = #grid_180x200.enc#
+Filgrd = #zurich_grid_enclosure.enc#
 MNKmax = 212 34 75
 Thick  =  7.2992701e-001
           3.6496350e+000
@@ -84,10 +83,10 @@ Thick  =  7.2992701e-001
           8.0291971e-002
           7.2262774e-001
 Commnt =                  
-Fildep = #LZ_180.dep#
+Fildep = #zurich_depths.dep#
 Commnt =                  
 Commnt =                 no. dry points: 16
-Fildry = #dry180.dry#
+Fildry = #zurich_dry_points.dry#
 Commnt =                 no. thin dams: 0
 Commnt =                  
 Itdate = #2008-03-01#
@@ -159,10 +158,10 @@ Trasol = #Cyclic-method#
 Momsol = #Cyclic#
 Commnt =                  
 Commnt =                 no. discharges: 4
-Filsrc = #RiversOperations.src#
+Filsrc = #zurich_rivers_operations.src#
 Fildis = #RiversOperationsQuantities.dis#
 Commnt =                 no. observation points: 3
-Filsta = #Observations.obs#
+Filsta = #zurich_observation_points.obs#
 Commnt =                 no. drogues: 0
 Commnt =                  
 Commnt =                  
@@ -189,6 +188,7 @@ Flrst  = 10080
 Commnt =                  
 Online = #N#
 Anglon = 8.75
+Filscc = #Secchi.scc#
 Filwp  = #Pressure.amp#
 Filwu  = #WindU.amu#
 Filwv  = #WindV.amv#
