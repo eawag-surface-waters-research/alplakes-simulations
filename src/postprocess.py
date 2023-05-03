@@ -15,7 +15,9 @@ def split_by_week(folder):
         raise ValueError("Unable to locate simulation results file trim-Simulation_Web.nc in {}".format(folder))
     new_folder = os.path.join(folder, "postprocess")
     if not os.path.exists(new_folder):
+        print("Creating {}".format(new_folder))
         os.makedirs(new_folder)
+    print("Opening file {}".format(file))
     with netCDF4.Dataset(file, "r") as nc:
         time = np.array(nc.variables["time"][:])
         time_unit = nc.variables["time"].units
@@ -29,7 +31,7 @@ def split_by_week(folder):
             s = np.min(idx)
             e = np.max(idx) + 1
             final_file_name = os.path.join(new_folder, "{}.nc".format(start_time.strftime('%Y%m%d')))
-
+            print("Outputting data to {}".format(final_file_name))
             with netCDF4.Dataset(final_file_name, "w") as dst:
                 # Copy Attributes
                 dst.setncatts(nc.__dict__)
