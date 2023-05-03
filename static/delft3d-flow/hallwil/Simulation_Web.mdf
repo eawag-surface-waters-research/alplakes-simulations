@@ -252,7 +252,6 @@ Zbot   = -44
 Ztop   = +1
 AirOut = #Y#
 HeaOut = #Y#
-Filwp  = #../../../COSMO_meteo/HAL/2019/COSMO_PS_2019-01-01_2019-12-31.amp#
 Filscc = #Secchi.scc#
 Filwp  = #Pressure.amp#
 Filwu  = #WindU.amu#
