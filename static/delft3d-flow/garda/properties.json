@@ -1,11 +1,14 @@
 {
   "grid": {
-    "minx": 687200,
-    "miny": 217400,
-    "maxx": 691500,
-    "maxy": 221500,
-    "dx": 500,
-    "dy": 500
+    "minx": 618000,
+    "miny": 5033000,
+    "maxx": 645800,
+    "maxy": 5085000,
+    "dx": 1000,
+    "dy": 1000,
+    "system": "UTM",
+    "zone_letter": "T",
+    "zone_number": 32
   },
    "secchi" : {
      "fixed":  2.8,

@@ -2,7 +2,7 @@ Ident  = #Delft3D-FLOW 3.56.29165#
 Commnt =                  
 Runtxt = #Lake Geneva#
          #Developed for the Meteolakes project#
-Filcco = #genva_grid.grd#
+Filcco = #geneva_grid.grd#
 Anglat =  4.6300000e+001
 Grdang =  0.0000000e+000
 Filgrd = #geneva_grid_enclosure.enc#

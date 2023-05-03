@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng
 
 
 
@@ -157,13 +157,15 @@ class Delft3D(object):
             self.log.error()
             raise
 
-    def weather_data_files(self, swiss_grid=True, buffer=10, no_data_value="-999.00"):
+    def weather_data_files(self, buffer=10, no_data_value="-999.00"):
         try:
             self.log.begin_stage("Creating weather data files.")
 
             self.log.info("Creating the meteo grid", indent=1)
             grid = self.properties["grid"]
-            minx, miny, maxx, maxy = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"]
+            if "system" not in grid:
+                raise ValueError("System must be defined.")
+            minx, miny, maxx, maxy, system = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"], grid["system"]
             gx = np.arange(minx, maxx + grid["dx"], grid["dx"])
             gy = np.arange(miny, maxy + grid["dy"], grid["dy"])
             gxx, gyy = np.meshgrid(gx, gy)
@@ -191,12 +193,18 @@ class Delft3D(object):
                     f.write('\nquantity1 = ' + self.files[i]["quantity"])
                     f.write('\nunit1 = ' + self.files[i]["unit"] + '\n')
 
-            if swiss_grid and grid["minx"] < 180:
+            if system == "WGS84":
                 self.log.info("Grid using WGS84 coordinate system.", indent=1)
-            else:
+            elif system == "CH1903":
                 self.log.info("Grid using ch1903 coordinate system, converting to WGS84 to collect weather data.", indent=1)
                 minx, miny = ch1903_to_latlng(minx, miny)
                 maxx, maxy = ch1903_to_latlng(maxx, maxy)
+            elif system == "UTM":
+                if "zone_letter" not in grid or "zone_number" not in grid:
+                    raise ValueError("zone_letter and zone_number must be defined in grid with using UTM")
+                minx, miny = utm_to_latlng(minx, miny, grid["zone_number"], grid["zone_letter"])
+                maxx, maxy = utm_to_latlng(maxx, maxy, grid["zone_number"], grid["zone_letter"])
+                
 
             self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy), indent=1)
             self.log.info("Writing weather data to simulation files.", indent=1)
@@ -207,7 +215,7 @@ class Delft3D(object):
                 data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, file, self.simulation_dir, no_data_value)
+                    weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value)
 
             self.log.end_stage()
         except Exception as e:
