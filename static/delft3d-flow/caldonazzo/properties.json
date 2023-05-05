@@ -4,8 +4,8 @@
     "miny": 5096800,
     "maxx": 675600,
     "maxy": 5100900,
-    "dx": 500,
-    "dy": 500,
+    "dx": 200,
+    "dy": 200,
     "system": "UTM",
     "zone_letter": "T",
     "zone_number": 32

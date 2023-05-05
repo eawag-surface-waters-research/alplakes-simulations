@@ -31,7 +31,11 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
             elif system == "UTM":
                 mx, my, zone_number, zone_letter = latlng_to_utm(lat, lng)
             mxx, myy = mx.flatten(), my.flatten()
-            grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy))
+            if np.nanmax(gxx) > np.nanmax(mxx) or np.nanmax(gyy) > np.nanmax(myy) or np.nanmin(gxx) < np.nanmin(mxx) or np.nanmin(gyy) < np.nanmin(myy):
+                print("Grid area exceeds weather station area")
+                grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy), method='nearest')
+            else:
+                grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy), method='linear')
             grid_interp[np.isnan(grid_interp)] = no_data_value
             f.write("\n")
             np.savetxt(f, grid_interp, fmt='%.2f')
