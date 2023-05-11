@@ -247,6 +247,7 @@ Flpp   =  0.00000e+00  0.00000e+00  0.00000e+00
 Flrst  = 10080
 Commnt =                  
 Online = #N#
+Zmodel = #Y#
 Zbot   = -44
 Ztop   = +1
 AirOut = #Y#
