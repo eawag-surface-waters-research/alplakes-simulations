@@ -9,8 +9,6 @@ import pandas as pd
 from scipy.interpolate import griddata
 from datetime import datetime, timedelta
 from functions import latlng_to_ch1903, latlng_to_utm
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc)):
