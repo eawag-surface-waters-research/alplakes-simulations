@@ -18,6 +18,7 @@ Steps for creating a Alplakes compliant Delft3D model setup.
     ```
     T0 =  ${Initial Conditions}
     Itdate = #2008-03-01#
+    Dt = 0.5
     Tunit  = #M#
     Zmodel = #Y# 
     Filscc = #Secchi.scc#
