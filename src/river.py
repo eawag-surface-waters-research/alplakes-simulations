@@ -51,8 +51,8 @@ def download_bafu_hydrodata_measured(api, station_id, parameter, start_date, end
     if response.status_code == 200:
         return response.json()
     else:
-        print(response.json())
-        log.warning("Unable to download data, HTTP error code {}".format(response.status_code))
+        log.warning("Unable to download data, HTTP error code {}".format(response.status_code), indent=2)
+        log.warning(str(response.json()), indent=2)
         return False
 
 
@@ -237,10 +237,11 @@ def outflow_from_total_inflow(parameters, folder, log, plot):
                 df = df.merge(station_data["temperature"]["data"], on='ds', how='left')
                 temperature.append(np.array(df["y"]))
         temperature = np.array(temperature)
-        temperature = np.nanmean(temperature, axis=0)
         out_temperature = np.array(river["data"]["temperature"])
-        out_temperature[~np.isnan(temperature)] = temperature[~np.isnan(temperature)]
-        river["data"]["temperature"] = temperature
+        if len(temperature) != 0:
+            temperature = np.nanmean(temperature, axis=0)
+            out_temperature[~np.isnan(temperature)] = temperature[~np.isnan(temperature)]
+        river["data"]["temperature"] = out_temperature
         river["data"]["flow"] = flow
         outflow = outflow + flow
     for river in parameters["rivers"]:
