@@ -59,10 +59,10 @@ def split_by_week(folder):
 
 def calculate_variables(folder):
     print("Calculating variables.")
-    for file in os.listdir(folder):
+    for file in os.listdir(os.path.join(folder, "postprocess")):
         print("Processing: {}".format(file))
         try:
-            functions.thermocline(os.path.join(folder, file))
+            functions.thermocline(os.path.join(folder, "postprocess", file))
         except Exception as e:
             print(e)
             print("Failed to calculate thermocline.")
