@@ -6,5 +6,6 @@ operational/output
 runs/*
 !runs/.gitkeep
 notebooks/.ipynb_checkpoints
-
+credentials.json
+src/test.py
 

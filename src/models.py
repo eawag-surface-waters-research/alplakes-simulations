@@ -20,6 +20,7 @@ class Delft3D(object):
         self.properties = {}
         self.simulation_dir = ""
         self.restart_file = ""
+        self.profile = "None"
         self.files = [
             {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0},
             {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0},
@@ -38,6 +39,7 @@ class Delft3D(object):
             self.log = logger(path=os.path.join(params["log"], log_prefix))
         else:
             self.log = logger()
+
         if "model" in params and "docker" in params:
             self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
@@ -56,6 +58,7 @@ class Delft3D(object):
             self.upload_data()
         if self.params["run"]:
             self.run_simulation()
+        return self.simulation_dir
 
     def initialise_simulation_directory(self, remove=True):
         try:
@@ -93,8 +96,14 @@ class Delft3D(object):
             self.log.begin_stage("Collecting restart file.")
             self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
             components = self.params["model"].split("/")
-            if self.params["no_restart"]:
-                self.log.info("No restart file, initial conditions must be specified in .mdf file.", indent=1)
+            if self.params["profile"]:
+                self.log.info("Using profile ({}), no restart file required.".format(self.params["profile"]), indent=1)
+                if ".txt" not in self.params["profile"]:
+                    self.params["profile"] = self.params["profile"] + ".txt"
+                if not os.path.exists(os.path.join(self.simulation_dir, "profiles", self.params["profile"])):
+                    raise ValueError('Specified profile "{}" cannot be found, select from {}'.format(self.params["profile"], os.listdir(os.path.join(self.simulation_dir, "profiles"))))
+                self.profile = self.params["profile"]
+                self.log.end_stage()
                 return
             if self.params["restart"]:
                 self.log.info("Copying restart file from local storage.", indent=1)
@@ -104,14 +113,25 @@ class Delft3D(object):
                     self.log.end_stage()
                     return
                 else:
-                    self.log.info("Unable to locate restart file: ".format(file), indent=1)
+                    raise ValueError("Unable to locate restart file: ".format(file))
             self.log.info("Downloading restart file from remote storage.", indent=1)
             if not self.params["bucket"]:
                 raise ValueError("No bucket address provided, either include local files or specify a bucket.")
             bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
             file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
             self.log.info("File location: {}".format(file), indent=2)
-            download_file(file, os.path.join(self.simulation_dir, self.restart_file))
+            status_code = download_file(file, os.path.join(self.simulation_dir, self.restart_file))
+            if status_code == 200:
+                self.log.info("Successfully downloaded restart file.", indent=2)
+            elif status_code == 403:
+                self.log.warning("Restart file doesn't exist on server.", indent=1)
+                if os.path.exists(os.path.join(self.simulation_dir, "profiles", "default.txt")):
+                    self.log.warning("Using default restart profile", indent=1)
+                    self.profile = "default.txt"
+                else:
+                    raise ValueError("Not restart file and no default restart profile.")
+            else:
+                raise ValueError("Unable to download restart file, please check your internet connection.")
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -138,10 +158,11 @@ class Delft3D(object):
                 lines = f.readlines()
             start = "{:.7e}".format((self.params["start"] - origin).total_seconds() / 60)
             end = "{:.7e}".format(((self.params["end"] - origin).total_seconds() / 60) - period)
-
+            restid_idx = 0
             for i in range(len(lines)):
                 if "Restid" in lines[i]:
                     lines[i] = "Restid = #" + self.restart_file.replace("tri-rst.", "") + "#\n"
+                    restid_idx = i
                 if "Tstart" in lines[i]:
                     lines[i] = "Tstart = " + start + "\n"
                 if "Tstop" in lines[i]:
@@ -149,9 +170,16 @@ class Delft3D(object):
                 if lines[i].split(" ")[0] in ["Flmap", "Flhis", "Flwq"]:
                     lines[i] = "{} = {} {} {}\n".format(lines[i].split(" ")[0], start, str(period), end)
 
-            self.log.info("Writing new dates to simulation file.", indent=1)
+            if self.profile != "None":
+                self.log.info("Reading profile from: {}".format(self.profile), indent=2)
+                with open(os.path.join(self.simulation_dir, "profiles", self.profile), 'r') as f:
+                    T0 = f.readlines()
+                lines = lines[:restid_idx] + T0 + lines[restid_idx + 1:]
+
+            self.log.info("Writing updated simulation file.", indent=1)
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'w') as f:
                 f.writelines(lines)
+
             self.log.end_stage()
         except Exception as e:
             self.log.error()

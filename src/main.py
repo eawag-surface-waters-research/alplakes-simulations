@@ -12,7 +12,7 @@ def main(params):
     if params["docker"] in setups:
         params = verify_args(params)
         run = setups[params["docker"]](params)
-        run.process()
+        return run.process()
     else:
         raise Exception("Currently only the following simulations are supported: {}".format(list(setups.keys())))
 
@@ -26,10 +26,10 @@ if __name__ == "__main__":
     parser.add_argument('--start', '-s', help="Start date e.g. 20221901", type=str)
     parser.add_argument('--end', '-e', help="End date e.g. 20221905", type=str)
     parser.add_argument('--bucket', '-b', help="S3 Bucket for restart-files and uploading results.", type=str, default="alplakes-eawag")
-    parser.add_argument('--upload', '-u', help="Upload files to bucket?", type=boolean_string, default=False)
+    parser.add_argument('--upload', '-u', help='Upload files to bucket.', action='store_true')
     parser.add_argument('--restart', '-z', help='Link to restart file, if using local file.', type=str, default=False)
-    parser.add_argument('--no_restart', '-x', help='No restart file requires, initial conditions in .mdf file.', action='store_true')
-    parser.add_argument('--run', '-r', help="Run the simulation", type=boolean_string, default=False)
+    parser.add_argument('--profile', '-p', help='Name of profile to start from should be in {lake}/profiles.', type=str, default=False)
+    parser.add_argument('--run', '-r', help='Run the simulation.', action='store_true')
     parser.add_argument('--api', '-a', help="Url of Alplakes API", type=str, default="http://eaw-alplakes2:8000")
     parser.add_argument('--today', '-t', help="Today's date e.g. 20220102", type=str, default=datetime.now().strftime("%Y%m%d"))
     parser.add_argument('--log', '-l', help="Log directory", type=str, default=False)

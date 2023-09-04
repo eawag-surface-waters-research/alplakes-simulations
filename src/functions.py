@@ -1,13 +1,16 @@
 import os
 import boto3
-import math
-from botocore.exceptions import ClientError
 import shutil
+import pylake
+import netCDF4
 import logging
 import traceback
+import subprocess
 import numpy as np
+import xarray as xr
 import pandas as pd
 from requests import get
+from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 
 
@@ -22,7 +25,9 @@ def convert_to_unit(time, units):
 
 def convert_from_unit(time, units):
     if units == "seconds since 2008-03-01 00:00:00":
-        return datetime.utcfromtimestamp(time + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds())
+        return datetime.utcfromtimestamp(time + (
+                    datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(
+                tzinfo=timezone.utc)).total_seconds())
     elif units == "seconds since 1970-01-01 00:00:00":
         return datetime.utcfromtimestamp(time)
     else:
@@ -53,14 +58,44 @@ def upload_file(file_name, bucket, object_name=None):
 
 
 def download_file(url, file_name):
-    # open in binary mode
-    with open(file_name, "wb") as file:
-        # get request
-        response = get(url)
-        if response.status_code != 200:
-            raise ValueError("Unable to download file, HTTP error code {}".format(response.status_code))
-        # write to file
-        file.write(response.content)
+    try:
+        with open(file_name, "wb") as file:
+            response = get(url)
+            if response.status_code != 200:
+                return response.status_code
+            file.write(response.content)
+        return response.status_code
+    except:
+        return 400
+
+
+def closest_sunday(input_date):
+    days_until_previous_sunday = input_date.weekday() + 1
+    if days_until_previous_sunday == 7:
+        days_until_previous_sunday = 0
+    days_until_next_sunday = (6 - input_date.weekday()) % 7
+    previous_sunday = input_date - timedelta(days=days_until_previous_sunday)
+    next_sunday = input_date + timedelta(days=days_until_next_sunday)
+    if days_until_previous_sunday <= days_until_next_sunday:
+        sunday = previous_sunday
+    else:
+        sunday = next_sunday
+    return sunday
+
+
+def sunday_before(input_date):
+    days_until_previous_sunday = input_date.weekday() + 1
+    if days_until_previous_sunday == 7:
+        days_until_previous_sunday = 0
+    previous_sunday = input_date - timedelta(days=days_until_previous_sunday)
+    return previous_sunday
+
+
+def iterate_weeks(start_date, end_date):
+    current_date = start_date
+    while current_date < end_date:
+        yield current_date
+        current_date += timedelta(weeks=1)
 
 
 def verify_args(args):
@@ -193,7 +228,8 @@ class logger(object):
                 else:
                     self.path = "{}.log".format(path.split(".")[0])
             else:
-                print("\033[93mUnable to find log folder: {}. Logs will be printed but not saved.\033[0m".format(os.path.dirname(path)))
+                print("\033[93mUnable to find log folder: {}. Logs will be printed but not saved.\033[0m".format(
+                    os.path.dirname(path)))
                 self.path = False
         else:
             self.path = False
@@ -282,6 +318,90 @@ class logger(object):
                 file.write("\n")
 
 
+def run_simulation(bucket, model, lake, restart, docker, simulation_dir, cores, creds):
+    r = ("s3://{}/simulations/{}/restart-files/{}_backfill/tri-rst.Simulation_Web_rst.{}.000000"
+         .format(bucket, model, lake, restart))
+    cmd = ["docker", "run",
+           "-e", "AWS_ID={}".format(creds["AWS_ID"]),
+           "-e", "AWS_KEY={}".format(creds["AWS_KEY"]),
+           "-v", "{}:/job".format(simulation_dir),
+           "--rm", docker, "-p", str(cores),
+           "-r", r]
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                               cwd=simulation_dir)
+    while True:
+        output = process.stdout.readline()
+        out = output.strip()
+        print(out)
+        return_code = process.poll()
+        if return_code is not None:
+            for output in process.stdout.readlines():
+                out = output.strip()
+                print(out)
+            break
+    if process.returncode != 0:
+        raise RuntimeError("Simulation failed.")
+
+
+def upload_results(simulation_dir, api_server_folder, creds):
+    cmd = ("sshpass -p {} ssh {}@{} mkdir -p {}"
+           .format(creds["api_password"], creds["api_user"], creds["api_server"], api_server_folder))
+
+    process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if process.returncode != 0:
+        print(process.returncode, process.stdout)
+        raise RuntimeError("Create folder failed.")
+
+    cmd = ("sshpass -p {} scp -r -o StrictHostKeyChecking=no {}/postprocess/* {}@{}:{}"
+           .format(creds["api_password"], simulation_dir, creds["api_user"], creds["api_server"], api_server_folder))
+
+    process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if process.returncode != 0:
+        print(process.returncode, process.stdout)
+        raise RuntimeError("Upload files failed.")
+
+
+def thermocline(file, overwrite=False):
+    with netCDF4.Dataset(file, 'r') as nc:
+        if "THERMOCLINE" in nc.variables.keys() and not overwrite:
+            print("Thermocline already calculated.")
+            return
+    temp_file = file.replace(".nc", "_temp.nc")
+    try:
+        shutil.copyfile(file, temp_file)
+        with netCDF4.Dataset(temp_file, 'a') as nc:
+            data = np.array(nc.variables["R1"][:, 0, :, :, :])
+            data = np.reshape(data, [data.shape[0], data.shape[1], data.shape[2] * data.shape[3]])
+            data[data == -999] = np.nan
+            data_xr = xr.DataArray(
+                data=data,
+                dims=["time", "depth", "data"],
+                coords=dict(
+                    time=("time", nc.variables["time"][:]),
+                    depth=("depth", nc.variables["ZK_LYR"][:] * -1),
+                    data=("data", np.arange(data.shape[2]))
+                )
+            )
+            t, index = pylake.thermocline(data_xr)
+            t = np.array(t)
+            t = np.reshape(t, [t.shape[0], nc.dimensions["M"].size, nc.dimensions["N"].size])
+            t[t == np.nanmax(t)] = np.nan
+            t[np.isnan(t)] = -999.0
+
+            if overwrite:
+                var = nc.variables["THERMOCLINE"]
+            else:
+                var = nc.createVariable("THERMOCLINE", np.float64, ['time', 'M', 'N'], fill_value=-999.0)
+                var.units = "m"
+                var.description = 'Thermocline calculate using PyLake'
+
+            var[:] = t
+        os.rename(temp_file, file)
+    except:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        raise
+
 
 def list_local_cosmo_files(folder, start_date, end_date, template="VNXQ34.{}0000.nc"):
     cosmo_files = []
@@ -358,9 +478,9 @@ def utm_to_latlng(easting, northing, zone_number, zone_letter=None, northern=Non
             raise ValueError('easting out of range (must be between 100,000 m and 999,999 m)')
         if not in_bounds(northing, 0, 10000000):
             raise ValueError('northing out of range (must be between 0 m and 10,000,000 m)')
-    
+
     check_valid_zone(zone_number, zone_letter)
-    
+
     if zone_letter:
         zone_letter = zone_letter.upper()
         northern = (zone_letter >= 'N')
@@ -395,7 +515,7 @@ def utm_to_latlng(easting, northing, zone_number, zone_letter=None, northern=Non
     n = R / ep_sin_sqrt
     r = (1 - E) / ep_sin
 
-    c = E_P2 * p_cos**2
+    c = E_P2 * p_cos ** 2
     c2 = c * c
 
     d = x / (n * K0)
@@ -408,7 +528,7 @@ def utm_to_latlng(easting, northing, zone_number, zone_letter=None, northern=Non
     latitude = (p_rad - (p_tan / r) *
                 (d2 / 2 -
                  d4 / 24 * (5 + 3 * p_tan2 + 10 * c - 4 * c2 - 9 * E_P2)) +
-                 d6 / 720 * (61 + 90 * p_tan2 + 298 * c + 45 * p_tan4 - 252 * E_P2 - 3 * c2))
+                d6 / 720 * (61 + 90 * p_tan2 + 298 * c + 45 * p_tan4 - 252 * E_P2 - 3 * c2))
 
     longitude = (d -
                  d3 / 6 * (1 + 2 * p_tan2 + c) +
@@ -470,8 +590,8 @@ def latlng_to_utm(latitude, longitude, force_zone_number=None, force_zone_letter
     central_lon = zone_number_to_central_longitude(zone_number)
     central_lon_rad = np.radians(central_lon)
 
-    n = R / np.sqrt(1 - E * lat_sin**2)
-    c = E_P2 * lat_cos**2
+    n = R / np.sqrt(1 - E * lat_sin ** 2)
+    c = E_P2 * lat_cos ** 2
 
     a = lat_cos * mod_angle(lon_rad - central_lon_rad)
     a2 = a * a
@@ -490,7 +610,7 @@ def latlng_to_utm(latitude, longitude, force_zone_number=None, force_zone_letter
                         a5 / 120 * (5 - 18 * lat_tan2 + lat_tan4 + 72 * c - 58 * E_P2)) + 500000
 
     northing = K0 * (m + n * lat_tan * (a2 / 2 +
-                                        a4 / 24 * (5 - lat_tan2 + 9 * c + 4 * c**2) +
+                                        a4 / 24 * (5 - lat_tan2 + 9 * c + 4 * c ** 2) +
                                         a6 / 720 * (61 - 58 * lat_tan2 + lat_tan4 + 600 * c - 330 * E_P2)))
 
     if mixed_signs(latitude):

@@ -2,6 +2,8 @@ import os
 import shutil
 import netCDF4
 import sys
+import pylake
+import xarray
 import argparse
 import numpy as np
 from datetime import timedelta
@@ -55,8 +57,20 @@ def split_by_week(folder):
             end_time = end_time + timedelta(days=7)
 
 
+def calculate_variables(folder):
+    print("Calculating variables.")
+    for file in os.listdir(folder):
+        print("Processing: {}".format(file))
+        try:
+            functions.thermocline(os.path.join(folder, file))
+        except Exception as e:
+            print(e)
+            print("Failed to calculate thermocline.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', '-f', help="Simulation folder", type=str)
     args = parser.parse_args()
     split_by_week(vars(args)["folder"])
+    calculate_variables(vars(args)["folder"])

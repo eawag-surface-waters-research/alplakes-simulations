@@ -16,9 +16,11 @@ Steps for creating a Alplakes compliant Delft3D model setup.
 4. Delete any unnecessary files such as .sh scripts and output files
 5. Edit the `Simulation_Web.mdf` file and ensure that the following parameters are set:
     ```
-    T0 =  ${Initial Conditions}
+    Restid = #Simulation_Web_rst.000000#
     Itdate = #2008-03-01#
     Dt = 0.5
+    Tstart = 
+    Tstop = 
     Tunit  = #M#
     Zmodel = #Y# 
     Filscc = #Secchi.scc#
@@ -35,6 +37,11 @@ Steps for creating a Alplakes compliant Delft3D model setup.
     ncFormat = 4
     FlNcdf = #map#
     ```
+   Remove any initial conditions. 
+   ```
+   T0 = ...
+   ```
+
 6. Create the properties.json file.
    ```json
    {
@@ -52,10 +59,5 @@ Steps for creating a Alplakes compliant Delft3D model setup.
      }
    }
    ```
-7. Run a start-up run in order to collect the restart file for the previous Sunday. Make sure to start run on a Sunday 
-in order to get correct restart file dates.
-   ```commandline
-   python main.py -m delft3d-flow/joux -x -d eawag/delft3d-flow:6.03.00.62434 -s 20230416 -e 20230425
-   ```
-8. Replace the `T0` with `Restid =  #Simulation_Web_rst.000000#`
-9. Push changes to the repo.
+   
+7. Push changes to the repo.
