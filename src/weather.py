@@ -11,12 +11,24 @@ from datetime import datetime, timedelta
 from functions import latlng_to_ch1903, latlng_to_utm
 
 
-def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc)):
+def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc), method='linear', warning=print):
     var = np.array(pd.to_numeric(var, errors='coerce'), dtype=float)
     var = var + properties["adjust"]
     time = np.array(time, dtype="datetime64")
     lat = np.array(lat)
     lng = np.array(lng)
+    if system == "WGS84":
+        mx, my = latlng_to_ch1903(lat, lng)
+    elif system == "CH1903":
+        mx, my = latlng_to_ch1903(lat, lng)
+    elif system == "UTM":
+        mx, my, zone_number, zone_letter = latlng_to_utm(lat, lng)
+    else:
+        raise ValueError("{} not implemented as a coordinate system.".format(system))
+    mxx, myy = mx.flatten(), my.flatten()
+    if np.nanmax(gxx) > np.nanmax(mxx) or np.nanmax(gyy) > np.nanmax(myy) or np.nanmin(gxx) < np.nanmin(mxx) or np.nanmin(gyy) < np.nanmin(myy):
+        method = 'nearest'
+        warning("Lake grid area exceeds model weather area")
     with open(os.path.join(folder, properties["filename"]), "a") as f:
         for i in range(len(time)):
             diff = datetime.fromtimestamp(time[i].astype('datetime64[s]').astype('int'), pytz.utc) - origin
@@ -24,18 +36,10 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
             time_str = "TIME = " + str(hours) + "0 hours since " + origin.strftime(
                 "%Y-%m-%d %H:%M:%S") + " +00:00"
             f.write(time_str)
-            if system == "WGS84":
-                mx, my = latlng_to_ch1903(lat, lng)
-            elif system == "CH1903":
-                mx, my = latlng_to_ch1903(lat, lng)
-            elif system == "UTM":
-                mx, my, zone_number, zone_letter = latlng_to_utm(lat, lng)
-            mxx, myy = mx.flatten(), my.flatten()
-            if np.nanmax(gxx) > np.nanmax(mxx) or np.nanmax(gyy) > np.nanmax(myy) or np.nanmin(gxx) < np.nanmin(mxx) or np.nanmin(gyy) < np.nanmin(myy):
-                print("Grid area exceeds weather station area")
-                grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy), method='nearest')
-            else:
-                grid_interp = griddata((mxx, myy), var[i].flatten(), (gxx, gyy), method='linear')
+            v = var[i].flatten()
+            if len(v[~np.isnan(v)]) == 0:
+                warning("Zero valid points, timestep will be no_data values only.")
+            grid_interp = griddata((mxx, myy), v, (gxx, gyy), method=method)
             grid_interp[np.isnan(grid_interp)] = no_data_value
             f.write("\n")
             np.savetxt(f, np.flip(grid_interp, 0), fmt='%.2f')
