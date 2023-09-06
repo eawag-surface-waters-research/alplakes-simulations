@@ -373,12 +373,13 @@ def thermocline(file, overwrite=False):
             data = np.array(nc.variables["R1"][:, 0, :, :, :])
             data = np.reshape(data, [data.shape[0], data.shape[1], data.shape[2] * data.shape[3]])
             data[data == -999] = np.nan
+            depth = np.array(nc.variables["ZK_LYR"][:]) * -1
             data_xr = xr.DataArray(
                 data=data,
                 dims=["time", "depth", "data"],
                 coords=dict(
                     time=("time", nc.variables["time"][:]),
-                    depth=("depth", nc.variables["ZK_LYR"][:] * -1),
+                    depth=("depth", depth),
                     data=("data", np.arange(data.shape[2]))
                 )
             )
@@ -386,6 +387,8 @@ def thermocline(file, overwrite=False):
             t = np.array(t)
             t = np.reshape(t, [t.shape[0], nc.dimensions["M"].size, nc.dimensions["N"].size])
             t[t == np.nanmax(t)] = np.nan
+            t[t < 0] = np.nan
+            t[t > np.nanmax(depth)] = np.nan
             t[np.isnan(t)] = -999.0
 
             if overwrite:
