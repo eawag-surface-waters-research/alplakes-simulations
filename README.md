@@ -49,5 +49,16 @@ For a Delft3D flow simulation with no river inputs, the `properties.json file` c
 }
 ```
 
+## Run Simulation
+
+See https://github.com/eawag-surface-waters-research/docker for instructions on how to install the docker image.
+
+You need to first navigate to the generated folder and then run the command below.
+
+```
+cd {{ run folder }}
+docker run -v $(pwd):/job --rm eawag/delft3d-flow:6.02.10.142612 -p 5
+```
+
 
 
