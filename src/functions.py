@@ -123,6 +123,28 @@ def boolean_string(s):
     return s == 'True'
 
 
+def get_ice():
+    response = get("https://alplakes-eawag.s3.eu-central-1.amazonaws.com/simulations/ice.json")
+    if response.status_code == 200:
+        json_data = response.json()
+        return json_data
+    else:
+        raise ValueError(f"Request failed with status code {response.status_code}")
+
+
+def check_ice(lake, date, ice):
+    if lake in ice:
+        for period in ice[lake]:
+            if len(period) == 2:
+                if datetime.strptime(str(period[0]), '%Y%m%d') < date < datetime.strptime(str(period[1]), '%Y%m%d'):
+                    return True
+            elif len(period) == 1:
+                if date > datetime.strptime(str(period[0]), '%Y%m%d'):
+                    return True
+    else:
+        return False
+
+
 def valid_date(check, args):
     if check["name"] not in args:
         if "default" in check:

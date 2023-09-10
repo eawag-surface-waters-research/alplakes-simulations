@@ -31,10 +31,16 @@ def backfill(params):
     with open('credentials.json') as f:
         creds = json.load(f)
 
+    ice = functions.get_ice()
+
     model, lake = params["model"].split("/")
     api_server_folder = "/nfsmount/filesystem/media/simulations/{}/results_backfill/{}".format(model, lake)
 
     for week_start in functions.iterate_weeks(start, end):
+        if functions.check_ice(lake, week_start, ice):
+            print("Skipping {} due to ice.".format(week_start))
+            params["profile"] = "default.txt"
+            continue
         params["start"] = week_start.strftime("%Y%m%d")
         params["end"] = (week_start + timedelta(days=8)).strftime("%Y%m%d")
         params["today"] = datetime.now().strftime("%Y%m%d")
