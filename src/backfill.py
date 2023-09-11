@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import functions
 from main import main
-from postprocess import split_by_week, calculate_variables
+import postprocess
 
 
 def backfill(params):
@@ -48,8 +48,7 @@ def backfill(params):
         simulation_dir = main(params)
         simulation_dir = os.path.abspath(simulation_dir)
         functions.run_simulation(params["bucket"], model, lake, restart, params["docker"], simulation_dir, params["cores"], creds)
-        split_by_week(simulation_dir)
-        calculate_variables(simulation_dir)
+        postprocess.main(simulation_dir, params["docker"])
         functions.upload_results(simulation_dir, api_server_folder, creds)
         shutil.rmtree(simulation_dir)
         params["profile"] = False

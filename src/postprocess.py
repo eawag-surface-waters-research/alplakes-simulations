@@ -1,9 +1,5 @@
 import os
-import shutil
 import netCDF4
-import sys
-import pylake
-import xarray
 import argparse
 import numpy as np
 from datetime import timedelta
@@ -11,7 +7,28 @@ from dateutil.relativedelta import relativedelta, SU
 import functions
 
 
-def split_by_week(folder):
+def verify_simulation_delft3d_flow(folder):
+    print("Verify simulation results")
+    file = os.path.join(folder, "trim-Simulation_Web.nc")
+    if not os.path.isfile(file):
+        raise ValueError("Unable to locate simulation results file trim-Simulation_Web.nc in {}".format(folder))
+    with netCDF4.Dataset(file) as nc:
+        for i in range(len(nc.variables["time"])):
+            x = np.array(nc.variables["R1"][i, 0, :, :])
+            x[x < 0] = np.nan
+            if np.nanmin(x) == np.nanmean(x) == np.nanmax(x):
+                raise ValueError("Simulation fails with all same values ({}degC) at {}"
+                                 .format(np.nanmean(x),
+                                         functions.convert_from_unit(nc.variables["time"][:][i],
+                                                                     nc.variables["time"].units)))
+            elif np.nanmin(x) < -5:
+                raise ValueError("Simulation contains unrealistic temperature value ({}degC)".format(np.nanmin(x)))
+            elif np.nanmax(x) > 40:
+                raise ValueError("Simulation contains unrealistic temperature value ({}degC)".format(np.nanmax(x)))
+
+
+def split_by_week_delft3d_flow(folder):
+    print("Splitting simulation results into weekly files")
     file = os.path.join(folder, "trim-Simulation_Web.nc")
     if not os.path.isfile(file):
         raise ValueError("Unable to locate simulation results file trim-Simulation_Web.nc in {}".format(folder))
@@ -57,7 +74,7 @@ def split_by_week(folder):
             end_time = end_time + timedelta(days=7)
 
 
-def calculate_variables(folder):
+def calculate_variables_delft3d_flow(folder):
     print("Calculating variables.")
     for file in os.listdir(os.path.join(folder, "postprocess")):
         print("Processing: {}".format(file))
@@ -68,9 +85,18 @@ def calculate_variables(folder):
             print("Failed to calculate thermocline.")
 
 
+def main(folder, docker):
+    if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
+        verify_simulation_delft3d_flow(folder)
+        split_by_week_delft3d_flow(folder)
+        calculate_variables_delft3d_flow(folder)
+    else:
+        raise ValueError("Postprocessing not defined for docker image {}".format(docker))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', '-f', help="Simulation folder", type=str)
+    parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:6.02.10.142612", type=str, default="eawag/delft3d-flow:6.02.10.142612")
     args = parser.parse_args()
-    split_by_week(vars(args)["folder"])
-    calculate_variables(vars(args)["folder"])
+    main(vars(args)["folder"], vars(args)["docker"])
