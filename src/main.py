@@ -22,7 +22,7 @@ if __name__ == "__main__":
         raise Exception('Requires python 3.9')
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', help="Model name e.g. delft3d-flow/greifensee", type=str)
-    parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:5.01.00.2163", type=str,)
+    parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:6.02.10.142612", type=str,)
     parser.add_argument('--start', '-s', help="Start date e.g. 20221901", type=str)
     parser.add_argument('--end', '-e', help="End date e.g. 20221905", type=str)
     parser.add_argument('--bucket', '-b', help="S3 Bucket for restart-files and uploading results.", type=str, default="alplakes-eawag")

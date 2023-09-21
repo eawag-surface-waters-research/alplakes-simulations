@@ -61,7 +61,7 @@ def download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, api, 
         query = "{}/meteoswiss/cosmo/area/forecast/VNXZ32/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
         print(query)
-        response = requests.get(query)
+        response = requests.get(query, timeout=60)
         if response.status_code == 200:
             data = response.json()
             for key in list(data.keys()):
