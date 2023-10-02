@@ -1,5 +1,4 @@
 import os
-import json
 import shutil
 import argparse
 from datetime import datetime, timedelta
@@ -28,11 +27,7 @@ def backfill(params):
     else:
         end = functions.sunday_before(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
 
-    with open('credentials.json') as f:
-        creds = json.load(f)
-
     ice = functions.get_ice()
-
     model, lake = params["model"].split("/")
     api_server_folder = "/nfsmount/filesystem/media/simulations/{}/results_backfill/{}".format(model, lake)
 
@@ -47,9 +42,11 @@ def backfill(params):
         restart = (week_start + timedelta(days=7)).strftime("%Y%m%d")
         simulation_dir = main(params)
         simulation_dir = os.path.abspath(simulation_dir)
-        functions.run_simulation(params["bucket"], model, lake, restart, params["docker"], simulation_dir, params["cores"], creds)
+        functions.run_simulation(params["bucket"], model, lake, restart, params["docker"], simulation_dir,
+                                 params["cores"], params["awsid"], params["awskey"])
         postprocess.main(simulation_dir, params["docker"])
-        functions.upload_results(simulation_dir, api_server_folder, creds)
+        functions.upload_results(simulation_dir, api_server_folder, params["apiserver"], params["apiuser"],
+                                 params["apipassword"])
         shutil.rmtree(simulation_dir)
         params["profile"] = False
 
@@ -59,8 +56,14 @@ if __name__ == "__main__":
     parser.add_argument('--start', '-s', help="Start date e.g. 20221901", type=str, default=False)
     parser.add_argument('--end', '-e', help="End date e.g. 20221905", type=str, default=False)
     parser.add_argument('--model', '-m', help="Model name e.g. delft3d-flow/greifensee", type=str)
-    parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:5.01.00.2163", type=str, )
+    parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:5.01.00.2163",
+                        type=str, default="eawag/delft3d-flow:6.02.10.142612")
     parser.add_argument('--profile', '-p', help="Name of profile to start from should be in {lake}/profiles.", type=str)
-    parser.add_argument('--cores', '-c', help="Number of cores for simulation", type=int, default=5)
+    parser.add_argument('--cores', '-c', help="Number of cores for simulation", type=str, default=5)
+    parser.add_argument('--awsid', '-i', help="AWS ID", type=str, default=False)
+    parser.add_argument('--awskey', '-k', help="AWS KEY", type=str, default=False)
+    parser.add_argument('--apiuser', '-u', help="API username", type=str, default="alplakes")
+    parser.add_argument('--apiserver', '-v', help="API server-name", type=str, default="eaw-alplakes2")
+    parser.add_argument('--apipassword', '-w', help="API password", type=str, default=False)
     args = parser.parse_args()
     backfill(vars(args))

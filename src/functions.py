@@ -340,12 +340,12 @@ class logger(object):
                 file.write("\n")
 
 
-def run_simulation(bucket, model, lake, restart, docker, simulation_dir, cores, creds):
+def run_simulation(bucket, model, lake, restart, docker, simulation_dir, cores, AWS_ID, AWS_KEY):
     r = ("s3://{}/simulations/{}/restart-files/{}_backfill/tri-rst.Simulation_Web_rst.{}.000000"
          .format(bucket, model, lake, restart))
     cmd = ["docker", "run",
-           "-e", "AWS_ID={}".format(creds["AWS_ID"]),
-           "-e", "AWS_KEY={}".format(creds["AWS_KEY"]),
+           "-e", "AWS_ID={}".format(AWS_ID),
+           "-e", "AWS_KEY={}".format(AWS_KEY),
            "-v", "{}:/job".format(simulation_dir),
            "--rm", docker, "-p", str(cores),
            "-r", r]
@@ -362,12 +362,14 @@ def run_simulation(bucket, model, lake, restart, docker, simulation_dir, cores, 
                 print(out)
             break
     if process.returncode != 0:
+        stderr_output = process.stderr.read()
+        print(stderr_output)
         raise RuntimeError("Simulation failed.")
 
 
-def upload_results(simulation_dir, api_server_folder, creds):
+def upload_results(simulation_dir, api_server_folder, api_server, api_user, api_password):
     cmd = ("sshpass -p {} ssh {}@{} mkdir -p {}"
-           .format(creds["api_password"], creds["api_user"], creds["api_server"], api_server_folder))
+           .format(api_password, api_user, api_server, api_server_folder))
 
     process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if process.returncode != 0:
@@ -375,7 +377,7 @@ def upload_results(simulation_dir, api_server_folder, creds):
         raise RuntimeError("Create folder failed.")
 
     cmd = ("sshpass -p {} scp -r -o StrictHostKeyChecking=no {}/postprocess/* {}@{}:{}"
-           .format(creds["api_password"], simulation_dir, creds["api_user"], creds["api_server"], api_server_folder))
+           .format(api_password, simulation_dir, api_user, api_server, api_server_folder))
 
     process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if process.returncode != 0:
