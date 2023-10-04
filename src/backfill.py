@@ -40,8 +40,12 @@ def backfill(params):
         params["end"] = (week_start + timedelta(days=8)).strftime("%Y%m%d")
         params["today"] = datetime.now().strftime("%Y%m%d")
         restart = (week_start + timedelta(days=7)).strftime("%Y%m%d")
+
         simulation_dir = main(params)
         simulation_dir = os.path.abspath(simulation_dir)
+        if params["filesystem"]:
+            simulation_dir = os.path.join(params["filesystem"], simulation_dir.split("/runs/")[1])
+
         functions.run_simulation(params["bucket"], model, lake, restart, params["docker"], simulation_dir,
                                  params["cores"], params["awsid"], params["awskey"])
         postprocess.main(simulation_dir, params["docker"])
@@ -65,5 +69,6 @@ if __name__ == "__main__":
     parser.add_argument('--apiuser', '-u', help="API username", type=str, default="alplakes")
     parser.add_argument('--apiserver', '-v', help="API server-name", type=str, default="eaw-alplakes2")
     parser.add_argument('--apipassword', '-w', help="API password", type=str, default=False)
+    parser.add_argument('--filesystem', '-f', help="Local filesystem when run in docker container", type=str, default=False)
     args = parser.parse_args()
     backfill(vars(args))
