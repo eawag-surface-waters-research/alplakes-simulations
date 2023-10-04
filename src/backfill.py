@@ -44,7 +44,7 @@ def backfill(params):
         simulation_dir = main(params)
         simulation_dir = os.path.abspath(simulation_dir)
         if params["filesystem"]:
-            simulation_dir = os.path.join(params["filesystem"], simulation_dir.split("/runs/")[1])
+            simulation_dir = os.path.join(params["filesystem"], "runs", simulation_dir.split("/runs/")[1])
 
         functions.run_simulation(params["bucket"], model, lake, restart, params["docker"], simulation_dir,
                                  params["cores"], params["awsid"], params["awskey"])
