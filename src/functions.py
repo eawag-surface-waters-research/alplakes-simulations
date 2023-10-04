@@ -340,13 +340,13 @@ class logger(object):
                 file.write("\n")
 
 
-def run_simulation(bucket, model, lake, restart, docker, simulation_dir, cores, AWS_ID, AWS_KEY):
+def run_simulation(bucket, model, lake, restart, docker, simulation_dir, simulation_dir_docker, cores, AWS_ID, AWS_KEY):
     r = ("s3://{}/simulations/{}/restart-files/{}_backfill/tri-rst.Simulation_Web_rst.{}.000000"
          .format(bucket, model, lake, restart))
     cmd = ["docker", "run",
            "-e", "AWS_ID={}".format(AWS_ID),
            "-e", "AWS_KEY={}".format(AWS_KEY),
-           "-v", "{}:/job".format(simulation_dir),
+           "-v", "{}:/job".format(simulation_dir_docker),
            "--rm", docker, "-p", str(cores),
            "-r", r]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
