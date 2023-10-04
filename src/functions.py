@@ -341,7 +341,7 @@ class logger(object):
 
 
 def run_simulation(bucket, model, lake, restart, docker, simulation_dir, simulation_dir_docker, cores, AWS_ID, AWS_KEY):
-    r = ("s3://{}/simulations/{}/restart-files/{}_backfill/tri-rst.Simulation_Web_rst.{}.000000"
+    r = ("s3://{}/simulations/{}/restart-files/{}/tri-rst.Simulation_Web_rst.{}.000000"
          .format(bucket, model, lake, restart))
     cmd = ["docker", "run",
            "-e", "AWS_ID={}".format(AWS_ID),
