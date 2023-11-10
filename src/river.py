@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
-import math
-import requests
 import numpy as np
 import pandas as pd
-from prophet import Prophet
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from datetime import datetime, timedelta
 
-from functions import logger
+from functions import logger, download_data
 
 
 def empty_arrays(parameters, start, end, no_data=0.0):
@@ -44,15 +41,11 @@ def monthly_temperature(time, average_temperature):
 def download_bafu_hydrodata_measured(api, station_id, parameter, start_date, end_date, log):
     # /bafu/hydrodata/measured/{station_id}/{parameter}/{start_date}/{end_date}
     query = "{}/bafu/hydrodata/measured/{}/{}/{}/{}".format(api, station_id, parameter, start_date, end_date)
-    try:
-        response = requests.get(query)
-    except:
-        raise ValueError("No response from Alplakes API, run failed.")
-    if response.status_code == 200:
-        return response.json()
+    data = download_data(query)
+    if data:
+        return data
     else:
-        log.warning("Unable to download data, HTTP error code {}".format(response.status_code), indent=2)
-        log.warning(str(response.json()), indent=2)
+        log.warning("Unable to download data.", indent=2)
         return False
 
 

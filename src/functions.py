@@ -1,9 +1,11 @@
 import os
+import time
 import boto3
 import shutil
 import pylake
 import netCDF4
 import logging
+import requests
 import traceback
 import subprocess
 import numpy as np
@@ -12,6 +14,23 @@ import pandas as pd
 from requests import get
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
+
+
+def download_data(query, attempts=3, timeout=120, sleep=30):
+    print(query)
+    for attempt in range(attempts):
+        try:
+            response = requests.get(query, timeout=timeout)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
+        except Exception as e:
+            print("Attempt {}/{} failed. Sleeping for {}s.".format(attempt + 1, attempts, sleep))
+            print(e)
+            if attempt == attempts - 1:
+                return False
+            time.sleep(sleep)
 
 
 def convert_to_unit(time, units):

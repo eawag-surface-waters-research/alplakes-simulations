@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
 import pytz
-import netCDF4
-import requests
-import xarray as xr
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata
-from datetime import datetime, timedelta
-from functions import latlng_to_ch1903, latlng_to_utm
+from datetime import datetime
+from functions import latlng_to_ch1903, latlng_to_utm, download_data
 
 
 def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc), method='linear', warning=print):
@@ -50,25 +47,20 @@ def download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, api, 
         # /meteoswiss/cosmo/area/reanalysis/{model}/{start_date}/{end_date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
         query = "{}/meteoswiss/cosmo/area/reanalysis/VNXQ34/{}/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
-        print(query)
-        response = requests.get(query)
-        if response.status_code == 200:
-            data = response.json()
-        else:
-            raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
+        data = download_data(query)
+        if data == False:
+            raise ValueError("Unable to download data.")
     else:
         # /meteoswiss/cosmo/area/forecast/{model}/{date}/{ll_lat}/{ll_lng}/{ur_lat}/{ur_lng}
         query = "{}/meteoswiss/cosmo/area/forecast/VNXZ32/{}/{}/{}/{}/{}"
         query = query.format(api, day.strftime("%Y%m%d"), minx, miny, maxx, maxy)
-        print(query)
-        response = requests.get(query, timeout=60)
-        if response.status_code == 200:
-            data = response.json()
+        data = download_data(query)
+        if data:
             for key in list(data.keys()):
                 if "_MEAN" in key:
                     data[key.replace("_MEAN", "")] = data.pop(key)
         else:
-            raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
+            raise ValueError("Unable to download data.")
     return data
 
 
