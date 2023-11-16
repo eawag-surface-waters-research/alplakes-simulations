@@ -1,0 +1,225 @@
+Ident  = #Delft3D-FLOW 3.59.01.57433#
+Commnt =                  
+Runtxt = #Lake Geneva#
+         #Model8#
+         #High Resolution Grid#
+         #Renaud Nasch#
+Filcco = #geneva_grid.grd#
+Anglat =  4.6300000e+001
+Grdang =  0.0000000e+000
+Filgrd = #geneva_grid_enclosure.enc#
+MNKmax = 235 235 100
+Thick  =  4.7458000e+000
+          4.7458000e+000
+          4.7458000e+000
+          4.7458000e+000
+          4.7458000e+000
+          4.7458000e+000
+          4.7458000e+000
+          4.4068000e+000
+          4.4068000e+000
+          4.4068000e+000
+          4.4068000e+000
+          4.0678000e+000
+          3.7288000e+000
+          3.3898000e+000
+          3.0508000e+000
+          2.7119000e+000
+          2.3729000e+000
+          2.0339000e+000
+          1.6949000e+000
+          1.5254000e+000
+          1.3559000e+000
+          1.1864000e+000
+          8.4750000e-001
+          8.4750000e-001
+          6.7800000e-001
+          6.1020000e-001
+          5.4240000e-001
+          4.7460000e-001
+          4.0680000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.3900000e-001
+          3.0510000e-001
+          2.7120000e-001
+          2.3730000e-001
+          2.0340000e-001
+          1.6950000e-001
+          1.6950000e-001
+          1.6950000e-001
+          1.6950000e-001
+          1.6950000e-001
+          1.6950000e-001
+          1.5250000e-001
+          1.3560000e-001
+          1.1860000e-001
+          1.0170000e-001
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          8.4700000e-002
+          1.6950000e-001
+Commnt =                  
+Fildep = #geneva_depths.dep#
+Commnt =                  
+Commnt =                 no. dry points: 0
+Commnt =                 no. thin dams: 0
+Commnt =                  
+Itdate = #2008-03-01#
+Tunit  = #M#
+Tstart =
+Tstop  =
+Dt     = 0.5
+Tzone  = 0
+Commnt =                  
+Sub1   = # TW #
+Sub2   = #  #
+Commnt =                  
+Wnsvwp = #Y#
+Wndint = #Y#
+Commnt =                  
+Zeta0  =  0.0000000e+000
+Commnt =                 initial conditions from restart file
+Restid =  #Simulation_Web_rst.000000#
+Commnt =                  
+Commnt =                 no. open boundaries: 0
+Commnt =                  
+Ag     =  9.8100000e+000
+Rhow   =  1.0000000e+003
+Tempw  =  1.5000000e+001
+Salw   =  1.0000000e+000
+Wstres =  1.6000000e-002  5.0000000e-001  1.8000000e-003  4.0000000e+000  9.0000000e-003  1.0000000e+002
+Rhoa   =  1.2400000e+000
+Betac  =  5.0000000e-001
+Equili = #N#
+Tkemod = #K-epsilon   #
+Ktemp  = 5
+Fclou  =  0.0000000e+000
+Sarea  =  5.8130000e+008
+Stantn =  5.0000000e-003
+Dalton =  1.5000000e-003
+Solrad = #N#
+Temint = #N#
+Commnt =                  
+Roumet = #C#
+Ccofu  =  6.0000000e+001
+Ccofv  =  6.0000000e+001
+Xlo    =  0.0000000e+000
+Vicouv =  1.0000000e+000
+Dicouv =  1.0000000e+000
+Htur2d = #N#
+Vicoww =  0.0000000e+000
+Dicoww =  5.0000000e-007
+Irov   = 0
+Commnt =                  
+Iter   =      2
+Dryflp = #YES#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =  0.0000000e+000
+Dco    = -9.9900000e+002
+Tlfsmo =  6.0000000e+001
+ThetQH =  0.0000000e+000
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #Cyclic-method#
+Momsol = #Cyclic#
+Commnt =
+Filsta = #geneva_observation_points.obs#
+Commnt =                 no. drogues: 0
+Commnt =                  
+Commnt =                  
+Commnt =                 no. cross sections: 0
+Commnt =                  
+SMhydr = #YYYYY#     
+SMderv = #NNNNNN#    
+SMproc = #YYYYYYYYYY#
+PMhydr = #NNNNNN#    
+PMderv = #NNN#       
+PMproc = #NNNNNNNNNN#
+SHhydr = #YYYY#      
+SHderv = #NNNNN#     
+SHproc = #YYYYYYYYYY#
+SHflux = #NNNN#      
+PHhydr = #NNNNNN#    
+PHderv = #NNN#       
+PHproc = #NNNNNNNNNN#
+PHflux = #NNNN#      
+Prhis  =  6.7521600e+006 360  6.7924800e+006
+Flmap  =  7.4908800e+006 180  7.4988000e+006
+Flhis  =  7.4908800e+006 180  7.4988000e+006
+Flpp   =  6.7521600e+006 0  7.0560000e+006
+Flrst  = 10080
+Commnt =                  
+Online = #N#
+Anglon = 6.6000000e+000
+Filscc = #Secchi.scc#
+Filwp  = #Pressure.amp#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Zmodel = #Y#
+Zbot   = -307.05
+Ztop   = +1
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+Filws  = #ShortwaveFlux.ams#
+Decay1 = 0
+Decay2 = 0.5
+Decay3 = 0.1
+Decay4 = 0.5
+Decay5 = 0.5
+ncFormat = 4
+FlNcdf = #map#
+Commnt =                  
