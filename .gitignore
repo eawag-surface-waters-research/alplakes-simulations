@@ -8,4 +8,5 @@ runs/*
 notebooks/.ipynb_checkpoints
 credentials.json
 src/test.py
+externaldata
 
