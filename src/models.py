@@ -261,6 +261,8 @@ class Delft3D(object):
                 minx, miny, maxx, maxy = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"]
                 gx = np.arange(minx, maxx + grid["dx"], grid["dx"])
                 gy = np.arange(miny, maxy + grid["dy"], grid["dy"])
+                scaling_factor = 1 if "scaling" not in self.properties["secchi"] else float(
+                    self.properties["secchi"]["scaling"])
 
                 self.log.info("Initialise the output secchi file and write the header", indent=1)
                 file = os.path.join(self.simulation_dir, "Secchi.scc")
@@ -279,12 +281,14 @@ class Delft3D(object):
                     f.write('\nquantity1 = Secchi_depth')
                     f.write('\nunit1 = m' + '\n')
 
+
+
                 if "monthly" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], self.params["start"], self.params["end"], len(gx), len(gy))
+                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
                 elif "fixed" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], self.params["start"], self.params["end"], len(gx), len(gy))
+                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
                 else:
                     raise ValueError("No method specified for generating secchi input file.")
             self.log.end_stage()
