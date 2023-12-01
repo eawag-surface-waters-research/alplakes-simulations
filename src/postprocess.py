@@ -16,7 +16,7 @@ def verify_simulation_delft3d_flow(folder):
         for i in range(1, len(nc.variables["time"])):
             x = np.array(nc.variables["R1"][i, 0, :, :])
             x[x < 0] = np.nan
-            if np.nanmin(x) == np.nanmean(x) == np.nanmax(x) and x != 4.0:
+            if np.nanmin(x) == np.nanmean(x) == np.nanmax(x) and not np.all(x[~np.isnan(x)] == 4):
                 raise ValueError("Simulation fails with all same values ({}degC) at {}"
                                  .format(np.nanmean(x),
                                          functions.convert_from_unit(nc.variables["time"][:][i],
