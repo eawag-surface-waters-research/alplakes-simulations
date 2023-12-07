@@ -2,7 +2,7 @@ import os
 import netCDF4
 import argparse
 import numpy as np
-from datetime import timedelta
+from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta, SU
 import functions
 
@@ -27,7 +27,7 @@ def verify_simulation_delft3d_flow(folder):
                 raise ValueError("Simulation contains unrealistic temperature value ({}degC)".format(np.nanmax(x)))
 
 
-def split_by_week_delft3d_flow(folder):
+def split_by_week_delft3d_flow(folder, skip=False):
     print("Splitting simulation results into weekly files")
     file = os.path.join(folder, "trim-Simulation_Web.nc")
     if not os.path.isfile(file):
@@ -45,6 +45,12 @@ def split_by_week_delft3d_flow(folder):
         start_time = min_time + relativedelta(weekday=SU(-1))
         end_time = start_time + timedelta(days=7)
         while start_time < max_time:
+            if skip and start_time < datetime.strptime(skip, "%Y%m%d"):
+                print("Skipping {}".format(start_time.strftime('%Y%m%d')))
+                start_time = start_time + timedelta(days=7)
+                end_time = end_time + timedelta(days=7)
+                continue
+
             idx = np.where(np.logical_and(time >= functions.convert_to_unit(start_time, time_unit),
                                           time < functions.convert_to_unit(end_time, time_unit)))
             s = np.min(idx)
@@ -85,10 +91,10 @@ def calculate_variables_delft3d_flow(folder):
             print("Failed to calculate thermocline.")
 
 
-def main(folder, docker):
+def main(folder, docker, skip=False):
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
         verify_simulation_delft3d_flow(folder)
-        split_by_week_delft3d_flow(folder)
+        split_by_week_delft3d_flow(folder, skip)
         calculate_variables_delft3d_flow(folder)
     else:
         raise ValueError("Postprocessing not defined for docker image {}".format(docker))
@@ -98,5 +104,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', '-f', help="Simulation folder", type=str)
     parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:6.02.10.142612", type=str, default="eawag/delft3d-flow:6.02.10.142612")
+    parser.add_argument('--skip', '-s', help="Don't process weeks before %Y%m%d", type=str, default=False)
     args = parser.parse_args()
-    main(vars(args)["folder"], vars(args)["docker"])
+    main(vars(args)["folder"], vars(args)["docker"], skip=vars(args)["skip"])
