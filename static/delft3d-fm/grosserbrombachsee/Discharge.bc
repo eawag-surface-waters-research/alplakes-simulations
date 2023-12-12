@@ -1,0 +1,22 @@
+[forcing]
+Name                            = east_0001
+Function                        = timeseries
+Time-interpolation              = linear
+Quantity                        = time
+Unit                            = seconds since 2012-03-26 00:00:00
+Quantity                        = dischargebnd
+Unit                            = m3/s
+0         -0.5
+32054400  -0.5
+
+[forcing]
+Name                            = west_0001
+Function                        = timeseries
+Time-interpolation              = linear
+Quantity                        = time
+Unit                            = seconds since 2012-03-26 00:00:00
+Quantity                        = dischargebnd
+Unit                            = m3/s
+0         0.5
+32054400  0.5
+

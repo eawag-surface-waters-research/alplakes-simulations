@@ -1,0 +1,13 @@
+
+[boundary]
+quantity=dischargebnd
+locationFile=east.pli
+forcingFile=Discharge.bc
+returnTime=0.0000000e+000
+
+[boundary]
+quantity=dischargebnd
+locationFile=west.pli
+forcingFile=Discharge.bc
+returnTime=0.0000000e+000
+
