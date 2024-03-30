@@ -38,6 +38,10 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
                 warning("Zero valid points, timestep will be no_data values only.")
             grid_interp = griddata((mxx, myy), v, (gxx, gyy), method=method)
             grid_interp[np.isnan(grid_interp)] = no_data_value
+            # ONLY FOR TESTING REMOVE FROM PRODUCTION
+            if properties["parameter"] in ["U", "V"]:
+                grid_interp[(grid_interp >= 0) & (grid_interp < 0.4)] = 0.4
+                grid_interp[(grid_interp > -0.4) & (grid_interp < 0)] = -0.4
             f.write("\n")
             np.savetxt(f, np.flip(grid_interp, 0), fmt='%.2f')
 
