@@ -79,6 +79,7 @@ def upload_file(file_name, bucket, object_name=None):
 def download_file(url, file_name):
     try:
         with open(file_name, "wb") as file:
+            url = url.replace("\\", "/")
             response = get(url)
             if response.status_code != 200:
                 return response.status_code
