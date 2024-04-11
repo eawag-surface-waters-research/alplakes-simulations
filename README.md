@@ -1,10 +1,10 @@
 # Alplakes Simulations
 
 ## Installation
-
+  
 - Clone the repository to your local machine using the command: 
 
- `git clone https://github.com/eawag-surface-waters-research/alplakes-simulations.git`
+ `git clone https://github.com/eawag-surface-waters-research/alplakes-simulations.git` (if you're using a ssh authentification : `git clone git@github.com:eawag-surface-waters-research/alplakes-simulations.git`)
  
  Note that the repository will be copied to your current working directory.
 
@@ -28,12 +28,14 @@ The most simple call to the script is as follows:
 python src/main.py -m delft3d-flow/greifensee -d eawag/delft3d-flow:6.03.00.62434 -s 20221009 -e 20221011
 ```
 Where -m references the static data folder, -d is the docker image, -s is the start date and -e is the end date.
+Restart files are only available on Sundays (start date should be a Sunday).
 
 For a full list of inputs run:
 
 ```bash
 python src/main.py --help
 ```
+The script will create input files in the folder "runs". If you want to run the simulation after creating these files, add "-r" in the cmd. See "Run simulation" below to run the simulation without going through the process of creating the input files.
 
 ## Expand to other lakes
 
@@ -51,8 +53,6 @@ For a Delft3D flow simulation with no river inputs, the `properties.json file` c
 
 ## Run Simulation
 
-See https://github.com/eawag-surface-waters-research/docker for instructions on how to install the docker image.
-
 You need to first navigate to the generated folder and then run the command below.
 
 ```
@@ -60,5 +60,12 @@ cd {{ run folder }}
 docker run -v $(pwd):/job --rm eawag/delft3d-flow:6.02.10.142612 -p 5
 ```
 
+See https://github.com/eawag-surface-waters-research/docker for informations on the docker image used to run delft3d.
 
+## Plot Inputs and Outputs
 
+You can run the "plot.py" script to generate images giving an overview of the inputs and results. 
+```bash
+python src\plot.py name_of_the_result_folder_in_runs
+```
+A "plots" folder will be generated in your result folder. 
