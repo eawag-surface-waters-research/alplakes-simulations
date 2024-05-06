@@ -33,5 +33,6 @@ if __name__ == "__main__":
     parser.add_argument('--api', '-a', help="Url of Alplakes API", type=str, default="http://eaw-alplakes2:8000")
     parser.add_argument('--today', '-t', help="Today's date e.g. 20220102", type=str, default=datetime.now().strftime("%Y%m%d"))
     parser.add_argument('--log', '-l', help="Log directory", type=str, default=False)
+    parser.add_argument('--software', '-y', help="Software name e.g. delft3dflow or delft3dfm", type=str, default='delft3dflow')
     args = parser.parse_args()
     main(vars(args))

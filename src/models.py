@@ -114,24 +114,25 @@ class Delft3D(object):
                     return
                 else:
                     raise ValueError("Unable to locate restart file: ".format(file))
-            self.log.info("Downloading restart file from remote storage.", indent=1)
-            if not self.params["bucket"]:
-                raise ValueError("No bucket address provided, either include local files or specify a bucket.")
-            bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
-            file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
-            self.log.info("File location: {}".format(file), indent=2)
-            status_code = download_file(file, os.path.join(self.simulation_dir, self.restart_file))
-            if status_code == 200:
-                self.log.info("Successfully downloaded restart file.", indent=2)
-            elif status_code == 403:
-                self.log.warning("Restart file doesn't exist on server.", indent=1)
-                if os.path.exists(os.path.join(self.simulation_dir, "profiles", "default.txt")):
-                    self.log.warning("Using default restart profile", indent=1)
-                    self.profile = "default.txt"
+            if self.params["software"] == 'delft3dflow':
+                self.log.info("Downloading restart file from remote storage.", indent=1)
+                if not self.params["bucket"]:
+                    raise ValueError("No bucket address provided, either include local files or specify a bucket.")
+                bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
+                file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
+                self.log.info("File location: {}".format(file), indent=2)
+                status_code = download_file(file, os.path.join(self.simulation_dir, self.restart_file))
+                if status_code == 200:
+                    self.log.info("Successfully downloaded restart file.", indent=2)
+                elif status_code == 403:
+                    self.log.warning("Restart file doesn't exist on server.", indent=1)
+                    if os.path.exists(os.path.join(self.simulation_dir, "profiles", "default.txt")):
+                        self.log.warning("Using default restart profile", indent=1)
+                        self.profile = "default.txt"
+                    else:
+                        raise ValueError("Not restart file and no default restart profile.")
                 else:
-                    raise ValueError("Not restart file and no default restart profile.")
-            else:
-                raise ValueError("Unable to download restart file, please check your internet connection.")
+                    raise ValueError("Unable to download restart file, please check your internet connection.")
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -153,6 +154,9 @@ class Delft3D(object):
     def update_control_file(self, origin=datetime(2008, 3, 1), period=180):
         try:
             self.log.begin_stage("Updating control file dates.")
+            if self.params['software'] == 'delft3dfm':
+                self.update_control_file_fm(origin, period)
+                return
             self.log.info("Reading simulation file.", indent=1)
             with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'r') as f:
                 lines = f.readlines()
@@ -184,7 +188,38 @@ class Delft3D(object):
         except Exception as e:
             self.log.error()
             raise
+    def update_control_file_fm(self, origin=datetime(2008, 3, 1), period=180):
+        try:
+            self.log.info("Reading simulation file.", indent=1)
+            with open(os.path.join(self.simulation_dir, "FlowFM.mdu"), 'r') as f:
+                lines = f.readlines()
+            start = "{:.7e}".format((self.params["start"] - origin).total_seconds() / 60)
+            end = "{:.7e}".format(((self.params["end"] - origin).total_seconds() / 60) - period)
+            restid_idx = 0
+            for i in range(len(lines)):
+                if "RestartDateTime" in lines[i]:
+                    lines[i] = "RestartDateTime = " + self.params["start"].strftime("%Y%m%d") + "\n"
+                if "RefDate" in lines[i]:
+                    lines[i] = "RefDate = " + origin.strftime("%Y%m%d") + "\n"
+                if "TStart" in lines[i]:
+                    lines[i] = "TStart = " + start + "\n"
+                if "TStop" in lines[i]:
+                    lines[i] = "TStop = " + end + "\n"
 
+            if self.profile != "None":
+                self.log.info("Reading profile from: {}".format(self.profile), indent=2)
+                with open(os.path.join(self.simulation_dir, "profiles", self.profile), 'r') as f:
+                    T0 = f.readlines()
+                lines = lines[:restid_idx] + T0 + lines[restid_idx + 1:]
+
+            self.log.info("Writing updated simulation file.", indent=1)
+            with open(os.path.join(self.simulation_dir, "FlowFM.mdu"), 'w') as f:
+                f.writelines(lines)
+
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
     def weather_data_files(self, buffer=10, no_data_value="-999.00"):
         try:
             self.log.begin_stage("Creating weather data files.")
@@ -207,6 +242,10 @@ class Delft3D(object):
             self.log.info("Initialise the output meteo files and write their headers", indent=1)
             for i in range(len(self.files)):
                 with open(os.path.join(self.simulation_dir, self.files[i]["filename"]), "w") as f:
+                    if self.params['software'] == 'delft3dfm':
+                        f.write('### START OF HEADER\n')
+                        f.write('### This file is created by the script alplakes-simulations\n')
+                        f.write('### Additional commments\n')
                     f.write('FileVersion = 1.03')
                     f.write('\nfiletype = meteo_on_equidistant_grid')
                     f.write('\nNODATA_value = ' + str(no_data_value))
@@ -220,6 +259,8 @@ class Delft3D(object):
                     f.write('\nn_quantity = 1')
                     f.write('\nquantity1 = ' + self.files[i]["quantity"])
                     f.write('\nunit1 = ' + self.files[i]["unit"] + '\n')
+                    if self.params['software'] == 'delft3dfm':
+                        f.write('### END OF HEADER\n')
 
             if system == "WGS84":
                 self.log.info("Grid using WGS84 coordinate system.", indent=1)
@@ -267,6 +308,10 @@ class Delft3D(object):
                 self.log.info("Initialise the output secchi file and write the header", indent=1)
                 file = os.path.join(self.simulation_dir, "Secchi.scc")
                 with open(file, "w") as f:
+                    if self.params['software'] == 'delft3dfm':
+                        f.write('### START OF HEADER\n')
+                        f.write('### This file is created by the script alplakes-simulations\n')
+                        f.write('### Additional commments\n')
                     f.write('FileVersion = 1.03')
                     f.write('\nfiletype = meteo_on_equidistant_grid')
                     f.write('\nNODATA_value = ' + str(no_data_value))
@@ -280,8 +325,8 @@ class Delft3D(object):
                     f.write('\nn_quantity = 1')
                     f.write('\nquantity1 = Secchi_depth')
                     f.write('\nunit1 = m' + '\n')
-
-
+                    if self.params['software'] == 'delft3dfm':
+                        f.write('### END OF HEADER\n')
 
                 if "monthly" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)
@@ -362,13 +407,21 @@ class Delft3D(object):
         try:
             self.log.begin_stage("Running simulation.")
             self.log.info("Running simulation as a subprocess.", indent=1)
-            print("-v {}:/job".format(self.simulation_dir))
-            process = subprocess.Popen(["docker", "run", "-v", "{}:/job".format(self.simulation_dir),
-                                        self.docker],
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE,
-                                       universal_newlines=True,
-                                       cwd=self.simulation_dir)
+            if self.params['software'] == 'delft3dfm':
+                delft3Dfm_exe_path = r"C:\Program Files\Deltares\Delft3D FM Suite 2023.02 HMWQ\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
+                process = subprocess.Popen([delft3Dfm_exe_path, os.path.join(self.simulation_dir, "dimr_config.xml")],
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE,
+                                           universal_newlines=True,
+                                           cwd=self.simulation_dir)
+            else:
+                print("-v {}:/job".format(self.simulation_dir))
+                process = subprocess.Popen(["docker", "run", "-v", "{}:/job".format(self.simulation_dir),
+                                            self.docker],
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE,
+                                           universal_newlines=True,
+                                           cwd=self.simulation_dir)
             error = self.log.subprocess(process, error="Flow exited abnormally")
             if process.returncode != 0:
                 output, error = process.communicate()
