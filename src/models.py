@@ -6,12 +6,13 @@ import subprocess
 import numpy as np
 from distutils.dir_util import copy_tree
 from datetime import datetime, timedelta
+import netCDF4 as nc
+import math
 
 import river
 import secchi
 import weather
 from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng
-
 
 
 class Delft3D(object):
@@ -41,9 +42,11 @@ class Delft3D(object):
             self.log = logger()
 
         if "model" in params and "docker" in params:
-            self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
+            self.log.initialise(
+                "Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
-        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] - timedelta(seconds=1)))
+        self.log.info(
+            "Creating input files from {} to {}".format(params["start"], params["end"] - timedelta(seconds=1)))
 
     def process(self):
         self.initialise_simulation_directory()
@@ -101,7 +104,11 @@ class Delft3D(object):
                 if ".txt" not in self.params["profile"]:
                     self.params["profile"] = self.params["profile"] + ".txt"
                 if not os.path.exists(os.path.join(self.simulation_dir, "profiles", self.params["profile"])):
-                    raise ValueError('Specified profile "{}" cannot be found, select from {}'.format(self.params["profile"], os.listdir(os.path.join(self.simulation_dir, "profiles"))))
+                    raise ValueError(
+                        'Specified profile "{}" cannot be found, select from {}'.format(self.params["profile"],
+                                                                                        os.listdir(os.path.join(
+                                                                                            self.simulation_dir,
+                                                                                            "profiles"))))
                 self.profile = self.params["profile"]
                 self.log.end_stage()
                 return
@@ -119,7 +126,8 @@ class Delft3D(object):
                 if not self.params["bucket"]:
                     raise ValueError("No bucket address provided, either include local files or specify a bucket.")
                 bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
-                file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
+                file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1],
+                                    self.restart_file)
                 self.log.info("File location: {}".format(file), indent=2)
                 status_code = download_file(file, os.path.join(self.simulation_dir, self.restart_file))
                 if status_code == 200:
@@ -188,6 +196,7 @@ class Delft3D(object):
         except Exception as e:
             self.log.error()
             raise
+
     def update_control_file_fm(self, origin=datetime(2008, 3, 1), period=180):
         try:
             self.log.info("Reading simulation file.", indent=1)
@@ -220,6 +229,107 @@ class Delft3D(object):
         except Exception as e:
             self.log.error()
             raise
+
+    def build_nc_weather_data_file(self, data, gxx, gyy):
+        nc_file = os.path.join(self.simulation_dir, 'FlowFM_meteo.nc')
+        with nc.Dataset(nc_file, 'w', format='NETCDF4_CLASSIC') as f:
+            # Add dimensions
+            dim_time = f.createDimension('time', len(data['time']))
+            dim_x = f.createDimension('x', len(gxx[0]))
+            dim_y = f.createDimension('y', len(gyy[:,0]))
+
+            # Add variables
+            time_ref = np.datetime64(data['time'][0])
+            time_ref_str = time_ref.astype('datetime64[s]').tolist().strftime("%Y-%m-%d %H:%M:%S.0 +0000")
+            var_time = f.createVariable('time', 'f8', dim_time)
+            var_time.setncattr('time_origin', time_ref_str)
+            var_time.setncattr('long name', 'Time - minutes since ' + time_ref_str)
+            var_time.setncattr('standard_name', 'time')
+            var_time.setncattr('calender', 'gregorian')
+            var_time.setncattr('units', 'minutes since '+time_ref_str)
+
+            var_x = f.createVariable('X', 'double', dim_x)
+            var_x.setncattr('standard_name', 'projection_x_coordinate')
+            var_x.setncattr('units', 'degrees_east')
+
+            var_y = f.createVariable('Y', 'double', dim_y)
+            var_y.setncattr('standard_name', 'projection_y_coordinate')
+            var_y.setncattr('units', 'degrees_north')
+
+            var_d2m = f.createVariable('d2m', 'f4', [dim_time, dim_y, dim_x])
+            var_d2m.setncattr('coordinates', 'y x')
+            var_d2m.setncattr('long_name', 'dew point temperature')
+            var_d2m.setncattr('standard_name', 'dew point temperature')
+            var_d2m.setncattr('units', 'C')
+
+            var_t2m = f.createVariable('t2m', 'f4', [dim_time, dim_y, dim_x])
+            var_t2m.setncattr('coordinates', 'y x')
+            var_t2m.setncattr('long_name', '2 metre temperature')
+            var_t2m.setncattr('standard_name', '2 metre temperature')
+            var_t2m.setncattr('units', 'C')
+
+            var_tcc = f.createVariable('tcc', 'f4', [dim_time, dim_y, dim_x])
+            var_tcc.setncattr('coordinates', 'y x')
+            var_tcc.setncattr('long_name', 'Total cloud cover')
+            var_tcc.setncattr('standard_name', 'Total cloud cover')
+            var_tcc.setncattr('units', '%')
+
+            var_solar = f.createVariable('ssr', 'f4', [dim_time, dim_y, dim_x])
+            var_solar.setncattr('coordinates', 'y x')
+            var_solar.setncattr('long_name', 'Solar radiation')
+            var_solar.setncattr('standard_name', 'Solar radiation')
+            var_solar.setncattr('units', 'W m**-2')
+
+            var_p = f.createVariable('air_pressure_fixed_height', 'f4', [dim_time, dim_y, dim_x]);
+            var_p.setncattr('coordinates', 'y x')
+            var_p.setncattr('long_name', 'Mean sea level pressure')
+            var_p.setncattr('standard_name', 'air_pressure')
+            var_p.setncattr('units', 'Pa')
+
+            var_c = f.createVariable('charnock', 'f4', [dim_time, dim_y, dim_x]);
+            var_c.setncattr('coordinates', 'y x')
+            var_c.setncattr('long_name', 'Charnock parameter')
+            var_c.setncattr('standard_name', 'charnock')
+            var_c.setncattr('units', '-')
+
+            var_u = f.createVariable('eastward_wind', 'f4', [dim_time, dim_y, dim_x]);
+            var_u.setncattr('coordinates', 'y x')
+            var_u.setncattr('long_name', '10 metre U wind component')
+            var_u.setncattr('standard_name', 'eastward_wind')
+            var_u.setncattr('units', 'm s**-1')
+
+            var_v = f.createVariable('northward_wind', 'f4', [dim_time, dim_y, dim_x]);
+            var_v.setncattr('coordinates', 'y x')
+            var_v.setncattr('long_name', '10 metre V wind component')
+            var_v.setncattr('standard_name', 'northward_wind')
+            var_v.setncattr('units', 'm s**-1')
+
+            t2m = np.array(data['T_2M'])
+            d2m = np.zeros((t2m.shape[0], t2m.shape[1], t2m.shape[2]))
+            for i in range(t2m.shape[0]):
+                for j in range(t2m.shape[1]):
+                    for k in range(t2m.shape[2]):
+                        a = 17.502
+                        b = 240.96
+                        T = t2m[i, j, k] - 273.15
+                        t2m[i, j, k] = T
+                        H = np.array(data['RELHUM_2M'])[i, j, k]/100
+                        alpha = (a * T / (b + T)) + math.log(H)
+                        d2m[i, j, k] = (b * alpha) / (a - alpha)
+
+            var_x[:] = gxx[0]
+            var_y[:] = gyy[:,0]
+            var_time[:] = (np.array(data['time'], dtype="datetime64") - time_ref) / np.timedelta64(1, 'm')  # min since ref date
+            var_d2m[:] = d2m
+            var_t2m[:] = t2m
+            var_tcc[:] = np.array(data['CLCT'])
+            var_solar[:] = data['GLOB']
+            var_p[:] = np.zeros((t2m.shape[0], t2m.shape[1], t2m.shape[2]))
+            var_c[:] = np.zeros((t2m.shape[0], t2m.shape[1], t2m.shape[2]))
+            var_u[:] = np.zeros((t2m.shape[0], t2m.shape[1], t2m.shape[2]))
+            var_v[:] = np.zeros((t2m.shape[0], t2m.shape[1], t2m.shape[2]))
+
+
     def weather_data_files(self, buffer=10, no_data_value="-999.00"):
         try:
             self.log.begin_stage("Creating weather data files.")
@@ -265,7 +375,8 @@ class Delft3D(object):
             if system == "WGS84":
                 self.log.info("Grid using WGS84 coordinate system.", indent=1)
             elif system == "CH1903":
-                self.log.info("Grid using ch1903 coordinate system, converting to WGS84 to collect weather data.", indent=1)
+                self.log.info("Grid using ch1903 coordinate system, converting to WGS84 to collect weather data.",
+                              indent=1)
                 minx, miny = ch1903_to_latlng(minx, miny)
                 maxx, maxy = ch1903_to_latlng(maxx, maxy)
             elif system == "UTM":
@@ -273,18 +384,41 @@ class Delft3D(object):
                     raise ValueError("zone_letter and zone_number must be defined in grid with using UTM")
                 minx, miny = utm_to_latlng(minx, miny, grid["zone_number"], grid["zone_letter"])
                 maxx, maxy = utm_to_latlng(maxx, maxy, grid["zone_number"], grid["zone_letter"])
-                
 
-            self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy), indent=1)
+            self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy),
+                          indent=1)
             self.log.info("Writing weather data to simulation files.", indent=1)
             variables = [file["parameter"] for file in self.files]
-            days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
+            days = [self.params["start"] + timedelta(days=x) for x in
+                    range((min(self.params["today"], self.params["end"]) - self.params["start"]).days + 1)]
+
             for day in days:
                 self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
                 data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
+
+            if self.params['software'] == 'delft3dfm':
+                self.log.info("Building netcdf weather input file for Delft3D FM", indent=1)
+                i = 0
+                data = dict()
+                for day in days:
+                    if i == 0:
+                        data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables,
+                                                                      self.params["api"], self.params["today"])
+                    else:
+                        daily_data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables,
+                                                                            self.params["api"], self.params["today"])
+                        for key in daily_data:
+                            if type(data[key]) == dict:
+                                data[key]['data'].extend(daily_data[key]['data'])
+                            else:
+                                if key == 'time':
+                                    data[key].extend(daily_data[key])
+                    i = i + 1
+                data_grid = weather.build_data_grid(system, gxx, gyy, data, no_data_value, warning=self.log.warning)
+                self.build_nc_weather_data_file(data_grid, gxx, gyy)
 
             self.log.end_stage()
         except Exception as e:
@@ -330,10 +464,12 @@ class Delft3D(object):
 
                 if "monthly" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
+                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], scaling_factor,
+                                                        self.params["start"], self.params["end"], len(gx), len(gy))
                 elif "fixed" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
+                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], scaling_factor,
+                                                      self.params["start"], self.params["end"], len(gx), len(gy))
                 else:
                     raise ValueError("No method specified for generating secchi input file.")
             self.log.end_stage()
@@ -349,9 +485,11 @@ class Delft3D(object):
             else:
                 start = self.params["start"] - timedelta(days=pre_days)
                 end = self.params["end"]
-                if self.params["end"].strftime("%Y%m%d") == self.params["today"].strftime("%Y%m%d") or self.params["end"] > self.params["today"]:
+                if self.params["end"].strftime("%Y%m%d") == self.params["today"].strftime("%Y%m%d") or self.params[
+                    "end"] > self.params["today"]:
                     self.log.info("Requested timeframe exceeds available data, data from {} to {} will be forecast."
-                                  .format(self.params["today"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d")), indent=1)
+                                  .format(self.params["today"].strftime("%Y%m%d"),
+                                          self.params["end"].strftime("%Y%m%d")), indent=1)
                     forecast = True
                 else:
                     if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
@@ -362,7 +500,8 @@ class Delft3D(object):
                 self.properties = river.empty_arrays(self.properties, self.params["start"], self.params["end"])
 
                 self.log.info("Collecting river data from {} to {}".format(start, end), indent=1)
-                self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"], self.params["today"], log=self.log)
+                self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"],
+                                                                self.params["today"], log=self.log)
 
                 self.log.info("Cleaning, smoothing and resampling downloaded data.", indent=1)
                 self.properties = river.clean_smooth_resample(self.properties, start, end, log=self.log)
