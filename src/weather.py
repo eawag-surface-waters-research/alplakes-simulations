@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
-import pytz
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import pytz
 from scipy.interpolate import griddata
-from datetime import datetime
+
 from functions import latlng_to_ch1903, latlng_to_utm, download_data
 
 
