@@ -3,12 +3,51 @@ import os
 import pytz
 import numpy as np
 import pandas as pd
+import pytz
 from scipy.interpolate import griddata
 from datetime import datetime
 from functions import latlng_to_ch1903, latlng_to_utm, download_data
 
 
-def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc), method='linear', warning=print):
+def build_data_grid(system, gxx, gyy, data, no_data_value, method='linear', warning=print):
+    lat = np.array(data['lat'])
+    lng = np.array(data['lng'])
+    if system == "WGS84":
+        mx, my = latlng_to_ch1903(lat, lng)
+    elif system == "CH1903":
+        mx, my = latlng_to_ch1903(lat, lng)
+    elif system == "UTM":
+        mx, my, zone_number, zone_letter = latlng_to_utm(lat, lng)
+    else:
+        raise ValueError("{} not implemented as a coordinate system.".format(system))
+    mxx, myy = mx.flatten(), my.flatten()
+    if np.nanmax(gxx) > np.nanmax(mxx) or np.nanmax(gyy) > np.nanmax(myy) or np.nanmin(gxx) < np.nanmin(
+            mxx) or np.nanmin(gyy) < np.nanmin(myy):
+        method = 'nearest'
+        warning("Lake grid area exceeds model weather area")
+
+    grid_data = dict()
+    grid_data['time'] = data['time']
+    for key in data:
+        var = data[key]
+        if type(var) == list:
+            continue
+        for i in range(len(data['time'])):
+            v = np.array(var['data'][i]).flatten()
+            if len(v[~np.isnan(v)]) == 0:
+                warning("Zero valid points, timestep will be no_data values only.")
+            grid_interp = griddata((mxx, myy), v, (gxx, gyy), method=method)
+            grid_interp[np.isnan(grid_interp)] = no_data_value
+            if i==0:
+                grid_data[key] = [grid_interp]
+            else:
+                grid_data[key].append(grid_interp)
+
+    return grid_data
+
+def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value,
+                               origin=datetime(2008, 3, 1, tzinfo=pytz.utc),
+                               method='linear', warning=print):
     var = np.array(pd.to_numeric(var, errors='coerce'), dtype=float)
     var = var + properties["adjust"]
     time = np.array(time, dtype="datetime64")
