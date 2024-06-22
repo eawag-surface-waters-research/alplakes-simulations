@@ -145,12 +145,12 @@ def plot_delft3d_files(run):
              {"file": "ShortwaveFlux.ams"},
              {"file": "Temperature.amt"},
              {"file": "WindU.amu"},
-             {"file": "WindV.amv"}]
+             {"file": "WindV.amv"}]cd gi
     for f in input_files:
         timestamps, data = extract_data_from_input_file(os.path.join(folder, f["file"]))
         f["timestamps"] = timestamps
         f["data"] = data
-    plot_input_heatmaps(input_files, folder)
+    #plot_input_heatmaps(input_files, folder)
     plot_input_linegraph(input_files)
 
     output_file = os.path.join(folder, "trim-Simulation_Web.nc")
