@@ -60,5 +60,12 @@ cd {{ run folder }}
 docker run -v $(pwd):/job --rm eawag/delft3d-flow:6.02.10.142612 -p 5
 ```
 
+## Change log
+
+#### 27 June 2024 - Temporary fix to improve summer surface temperature prediction
+Zurich and Geneva switched to half secchi values and D3D 6.03.00.62434 (old model) due to underprediction 
+of summer surface temperature. The full dataset was not re-computed hence there is a discrepancy in the timeseries on the
+19 May 2024 where it shifts from the old values of secchi and the new model to the half secchi values and the old model. 
+
 
 

@@ -145,7 +145,7 @@ def plot_delft3d_files(run):
              {"file": "ShortwaveFlux.ams"},
              {"file": "Temperature.amt"},
              {"file": "WindU.amu"},
-             {"file": "WindV.amv"}]cd gi
+             {"file": "WindV.amv"}]
     for f in input_files:
         timestamps, data = extract_data_from_input_file(os.path.join(folder, f["file"]))
         f["timestamps"] = timestamps

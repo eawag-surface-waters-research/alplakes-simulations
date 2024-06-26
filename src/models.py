@@ -393,3 +393,10 @@ class delft3d_flow_6030062434(Delft3D):
         super(delft3d_flow_6030062434, self).__init__(*args, **kwargs)
         self.version = "6.03.00.62434"
         self.docker = "eawag/delft3d-flow:6.03.00.62434"
+
+
+class delft3d_flow_60210142612(Delft3D):
+    def __init__(self, *args, **kwargs):
+        super(delft3d_flow_60210142612, self).__init__(*args, **kwargs)
+        self.version = "6.02.10.142612"
+        self.docker = "eawag/delft3d-flow:6.02.10.142612"

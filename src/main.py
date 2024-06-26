@@ -8,7 +8,7 @@ from functions import verify_args, boolean_string
 def main(params):
     setups = {"eawag/delft3d-flow:5.01.00.2163": delft3d_flow_501002163,
               "eawag/delft3d-flow:6.03.00.62434": delft3d_flow_6030062434,
-              "eawag/delft3d-flow:6.02.10.142612": delft3d_flow_6030062434}
+              "eawag/delft3d-flow:6.02.10.142612": delft3d_flow_60210142612}
     if params["docker"] in setups:
         params = verify_args(params)
         run = setups[params["docker"]](params)
