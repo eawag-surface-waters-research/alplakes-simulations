@@ -734,3 +734,17 @@ def latlon_to_zone_number(latitude, longitude):
 
 def zone_number_to_central_longitude(zone_number):
     return (zone_number - 1) * 6 - 180 + 3
+
+
+def get_closest_index(value, array):
+    array = np.asarray(array)
+    sorted_array = np.sort(array)
+    if len(array) == 0:
+        raise ValueError("Array must be longer than len(0) to find index of value")
+    elif len(array) == 1:
+        return 0
+    if value > (2 * sorted_array[-1] - sorted_array[-2]):
+        raise ValueError("Value {} greater than max available ({})".format(value, sorted_array[-1]))
+    elif value < (2 * sorted_array[0] - sorted_array[-1]):
+        raise ValueError("Value {} less than min available ({})".format(value, sorted_array[0]))
+    return (np.abs(array - value)).argmin()
