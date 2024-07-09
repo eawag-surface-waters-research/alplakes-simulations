@@ -26,39 +26,43 @@ def upwelling(folder, parameters):
                 data = values[mask]
                 k = 2
                 centroids, _ = kmeans(data, k)
-                diff = float(abs(centroids[1] - centroids[0]))
-                if diff > parameters["centroid_difference"]:
-                    if event == False:
-                        event = {
-                            "start": time[time_index].strftime('%Y%m%d%H%M'),
-                            "peak": time[time_index].strftime('%Y%m%d%H%M'),
-                            "end": time[time_index].strftime('%Y%m%d%H%M'),
-                            "max_centroid": diff
-                        }
-                    else:
-                        event["end"] = time[time_index].strftime('%Y%m%d%H%M')
-                        if diff > event["max_centroid"]:
-                            event["peak"] = time[time_index].strftime('%Y%m%d%H%M')
-                            event["max_centroid"] = diff
+                if len(centroids) == 2:
+                    diff = float(abs(centroids[1] - centroids[0]))
+                    if diff > parameters["centroid_difference"]:
+                        if event == False:
+                            event = {
+                                "start": time[time_index].strftime('%Y%m%d%H%M'),
+                                "peak": time[time_index].strftime('%Y%m%d%H%M'),
+                                "end": time[time_index].strftime('%Y%m%d%H%M'),
+                                "max_centroid": diff
+                            }
+                        else:
+                            event["end"] = time[time_index].strftime('%Y%m%d%H%M')
+                            if diff > event["max_centroid"]:
+                                event["peak"] = time[time_index].strftime('%Y%m%d%H%M')
+                                event["max_centroid"] = diff
 
-                    # Plot results
-                    cluster_labels, _ = vq(data, centroids)
-                    plot_values = np.array(nc.variables["R1"][time_index, 0, depth_index, :])
-                    plot_values[plot_values == -999] = np.nan
-                    plt.imshow(plot_values, cmap='seismic')
-                    plt.colorbar(label="Temperature (°C)")
-                    plt.title("Upwelling {}".format(time[time_index]))
-                    plt.xlabel("Centroid difference: {}°C".format(round(diff, 1)))
-                    plt.tight_layout()
-                    out = np.zeros(len(values))
-                    out[:] = np.nan
-                    out[mask] = cluster_labels
-                    out = out.reshape(plot_values.shape)
-                    plt.contour(list(range(out.shape[1])), list(range(out.shape[0])), out, levels=[0, 1], colors='k',
-                                linewidths=1, linestyles='dashed')
-                    os.makedirs(os.path.join(folder, "upwelling"), exist_ok=True)
-                    plt.savefig(os.path.join(folder, "upwelling/upwelling_{}".format(time[time_index].strftime('%Y%m%d%H%M'))), bbox_inches='tight')
-                    plt.close()
+                        # Plot results
+                        cluster_labels, _ = vq(data, centroids)
+                        plot_values = np.array(nc.variables["R1"][time_index, 0, depth_index, :])
+                        plot_values[plot_values == -999] = np.nan
+                        plt.imshow(plot_values, cmap='seismic')
+                        plt.colorbar(label="Temperature (°C)")
+                        plt.title("Upwelling {}".format(time[time_index]))
+                        plt.xlabel("Centroid difference: {}°C".format(round(diff, 1)))
+                        plt.tight_layout()
+                        out = np.zeros(len(values))
+                        out[:] = np.nan
+                        out[mask] = cluster_labels
+                        out = out.reshape(plot_values.shape)
+                        plt.contour(list(range(out.shape[1])), list(range(out.shape[0])), out, levels=[0, 1], colors='k',
+                                    linewidths=1, linestyles='dashed')
+                        os.makedirs(os.path.join(folder, "upwelling"), exist_ok=True)
+                        plt.savefig(os.path.join(folder, "upwelling/upwelling_{}".format(time[time_index].strftime('%Y%m%d%H%M'))), bbox_inches='tight')
+                        plt.close()
+                    elif event != False:
+                        events.append(event)
+                        event = False
                 elif event != False:
                     events.append(event)
                     event = False
