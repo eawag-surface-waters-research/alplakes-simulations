@@ -7,6 +7,7 @@ import numpy as np
 from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta, SU
 import matplotlib.pyplot as plt
+import scipy.ndimage
 from scipy.cluster.vq import kmeans, vq
 from functions import get_closest_index, convert_from_unit
 
@@ -71,36 +72,66 @@ def upwelling(folder, parameters):
     return events
 
 
-def threshold_detection(folder, parameters):
-    return []
-    print("Detecting if thresholds are exceeded")
+def localised_currents(folder, parameters):
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".nc")]
     files.sort()
+    events = []
+    event = False
+    structure = np.ones((3, 3))
     for file in files:
-        with xr.open_dataset(file, chunks={'time': 10}) as da:
-            if parameters["parameter"] == "temperature":
-                data = da["R1"]
-                data.where(data != -999, other=np.nan)
-                dims = ['LSTSCI', 'KMAXOUT_RESTR', 'M', 'N']
-            elif parameters["parameter"] == "velocity":
-                u = da["U1"].rename({"MC": "M"})
-                v = da["V1"].rename({"NC": "N"})
-                u = u.where(u != -999.0, other=np.nan)
-                v = v.where(v != -999.0, other=np.nan)
-                data = (u**2 + v**2)**0.5
-                dims = ['KMAXOUT_RESTR', 'M', 'N']
-            if parameters["greaterthan"]:
-                exceeds_threshold = data > parameters["value"]
-            else:
-                exceeds_threshold = data < parameters["value"]
-            exceeds_at_timestep = exceeds_threshold.any(dim=dims)
-    return []
+        with netCDF4.Dataset(file) as nc:
+            depth_index = get_closest_index(parameters["depth"], np.array(nc.variables["ZK_LYR"][:]) * -1)
+            time = [convert_from_unit(t, nc.variables["time"].units) for t in nc.variables["time"][:]]
+            area = np.count_nonzero(np.array(nc.variables["U1"][0, depth_index, :]) != -999)
+            minCells = int(area * parameters["minArea"])
+            maxCells = int(area * parameters["maxArea"])
+            for time_index in range(len(time)):
+                u = np.array(nc.variables["U1"][time_index, depth_index, :])
+                v = np.array(nc.variables["V1"][time_index, depth_index, :])
+                u[u == -999] = np.nan
+                v[v == -999] = np.nan
+                raw_values = (u ** 2 + v ** 2) ** 0.5
+                values = raw_values.copy()
+                values[np.isnan(values)] = -999
+                values[values < parameters["threshold"]] = -999
+                labeled_array, num_features = scipy.ndimage.label(values != -999, structure=structure)
+                cluster_sizes = np.bincount(labeled_array.ravel())[1:]
+                if len([c for c in cluster_sizes if c >= minCells and c <= maxCells]) > 0:
+                    if event == False:
+                        event = {
+                            "start": time[time_index].strftime('%Y%m%d%H%M'),
+                            "end": time[time_index].strftime('%Y%m%d%H%M')
+                        }
+                    else:
+                        event["end"] = time[time_index].strftime('%Y%m%d%H%M')
+
+                    data = labeled_array.copy()
+                    for i, c in enumerate(cluster_sizes):
+                        if c >= minCells and c <= maxCells:
+                            data[data == i + 1] = 1
+                        else:
+                            data[data == i + 1] = 0
+                    plt.imshow(raw_values, cmap='viridis', interpolation='nearest')
+                    plt.colorbar(label="Velocity (m/s)")
+                    plt.title("Localised currents {}".format(time[time_index]))
+                    plt.tight_layout()
+                    plt.contour(list(range(data.shape[1])), list(range(data.shape[0])), data, levels=[0, 1], colors='r',
+                                linewidths=1, linestyles='dashed')
+                    os.makedirs(os.path.join(folder, "localisedCurrents"), exist_ok=True)
+                    plt.savefig(os.path.join(folder, "localisedCurrents/localisedCurrents_{}".format(time[time_index].strftime('%Y%m%d%H%M'))), bbox_inches='tight')
+                    plt.close()
+                elif event != False:
+                    events.append(event)
+                    event = False
+    if event != False:
+        events.append(event)
+    return events
 
 
 def main(folder, docker):
     event_functions = {
         "upwelling": upwelling,
-        "threshold_detection": threshold_detection
+        "localisedCurrents": localised_currents
     }
     with open(os.path.join(folder, "properties.json"), 'r') as f:
         properties = json.load(f)
