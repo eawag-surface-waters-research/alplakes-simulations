@@ -210,7 +210,7 @@
     },
     {
       "type": "localisedCurrents",
-      "parameters": { "threshold": 0.3, "depth": 0.7, "min_area": 1, "max_area": 5, "total_area": 580, "merge": 6, "description": "Detected by selecting regions at 0.7m with velocity greater than 0.3m/s, regions with between 10 and 50km2 are identified as localised currents." }
+      "parameters": { "threshold": 0.3, "depth": 0.7, "min_area": 1, "max_area": 5, "total_area": 580, "merge": 6, "description": "Detected by selecting regions at 0.7m with velocity greater than 0.3m/s, regions with between 1 and 5km2 are identified as localised currents." }
     }
   ]
 }
