@@ -4,7 +4,7 @@ import netCDF4
 import argparse
 import xarray as xr
 import numpy as np
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from dateutil.relativedelta import relativedelta, SU
 import matplotlib.pyplot as plt
 import scipy.ndimage
@@ -16,32 +16,48 @@ def upwelling(folder, parameters):
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".nc")]
     files.sort()
     events = []
-    event = False
+    event = None
     for file in files:
         with netCDF4.Dataset(file) as nc:
             depth_index = get_closest_index(parameters["depth"], np.array(nc.variables["ZK_LYR"][:]) * -1)
-            time = [convert_from_unit(t, nc.variables["time"].units) for t in nc.variables["time"][:]]
+            time = [convert_from_unit(t, nc.variables["time"].units).replace(tzinfo=timezone.utc) for t in nc.variables["time"][:]]
             for time_index in range(len(time)):
                 values = np.array(nc.variables["R1"][time_index, 0, depth_index, :]).flatten()
                 mask = values != -999
                 data = values[mask]
                 k = 2
                 centroids, _ = kmeans(data, k)
+                new = True
                 if len(centroids) == 2:
                     diff = float(abs(centroids[1] - centroids[0]))
                     if diff > parameters["centroid_difference"]:
-                        if event == False:
+                        if event is None:
+                            if len(events) > 0:
+                                merge_time = datetime.fromisoformat(events[-1]["end"]) + timedelta(hours=parameters["merge"])
+                                if time[time_index] <= merge_time:
+                                    event = events[-1]
+                                    events = events[:-1]
+                                    new = False
+                        else:
+                            new = False
+                        if new:
                             event = {
-                                "start": time[time_index].strftime('%Y%m%d%H%M'),
-                                "peak": time[time_index].strftime('%Y%m%d%H%M'),
-                                "end": time[time_index].strftime('%Y%m%d%H%M'),
-                                "max_centroid": diff
+                                "type": "upwelling",
+                                "description": parameters["description"],
+                                "start": time[time_index].isoformat(),
+                                "end": time[time_index].isoformat(),
+                                "properties": {"peak": time[time_index].isoformat(),
+                                               "max_centroid": diff},
+                                "parameters": {
+                                    "depth": parameters["depth"],
+                                    "centroid_difference": parameters["centroid_difference"],
+                                }
                             }
                         else:
-                            event["end"] = time[time_index].strftime('%Y%m%d%H%M')
-                            if diff > event["max_centroid"]:
-                                event["peak"] = time[time_index].strftime('%Y%m%d%H%M')
-                                event["max_centroid"] = diff
+                            event["end"] = time[time_index].isoformat()
+                            if diff > event["properties"]["max_centroid"]:
+                                event["properties"]["peak"] = time[time_index].isoformat()
+                                event["properties"]["max_centroid"] = diff
 
                         # Plot results
                         cluster_labels, _ = vq(data, centroids)
@@ -58,16 +74,16 @@ def upwelling(folder, parameters):
                         out = out.reshape(plot_values.shape)
                         plt.contour(list(range(out.shape[1])), list(range(out.shape[0])), out, levels=[0, 1], colors='k',
                                     linewidths=1, linestyles='dashed')
-                        os.makedirs(os.path.join(folder, "upwelling"), exist_ok=True)
-                        plt.savefig(os.path.join(folder, "upwelling/upwelling_{}".format(time[time_index].strftime('%Y%m%d%H%M'))), bbox_inches='tight')
+                        os.makedirs(os.path.join(folder, "events"), exist_ok=True)
+                        plt.savefig(os.path.join(folder, "events/upwelling_{}".format(time[time_index].isoformat())), bbox_inches='tight')
                         plt.close()
-                    elif event != False:
+                    elif event is not None:
                         events.append(event)
-                        event = False
-                elif event != False:
+                        event = None
+                elif event is not None:
                     events.append(event)
-                    event = False
-    if event != False:
+                    event = None
+    if event is not None:
         events.append(event)
     return events
 
@@ -76,15 +92,15 @@ def localised_currents(folder, parameters):
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".nc")]
     files.sort()
     events = []
-    event = False
+    event = None
     structure = np.ones((3, 3))
     for file in files:
         with netCDF4.Dataset(file) as nc:
             depth_index = get_closest_index(parameters["depth"], np.array(nc.variables["ZK_LYR"][:]) * -1)
-            time = [convert_from_unit(t, nc.variables["time"].units) for t in nc.variables["time"][:]]
+            time = [convert_from_unit(t, nc.variables["time"].units).replace(tzinfo=timezone.utc) for t in nc.variables["time"][:]]
             area = np.count_nonzero(np.array(nc.variables["U1"][0, depth_index, :]) != -999)
-            minCells = int(area * parameters["minArea"])
-            maxCells = int(area * parameters["maxArea"])
+            minCells = int(area * (parameters["min_area"] / parameters["total_area"]))
+            maxCells = int(area * (parameters["max_area"] / parameters["total_area"]))
             for time_index in range(len(time)):
                 u = np.array(nc.variables["U1"][time_index, depth_index, :])
                 v = np.array(nc.variables["V1"][time_index, depth_index, :])
@@ -96,14 +112,35 @@ def localised_currents(folder, parameters):
                 values[values < parameters["threshold"]] = -999
                 labeled_array, num_features = scipy.ndimage.label(values != -999, structure=structure)
                 cluster_sizes = np.bincount(labeled_array.ravel())[1:]
+                new = True
                 if len([c for c in cluster_sizes if c >= minCells and c <= maxCells]) > 0:
-                    if event == False:
+                    if event is None:
+                        if len(events) > 0:
+                            merge_time = datetime.fromisoformat(events[-1]["end"]) + timedelta(
+                                hours=parameters["merge"])
+                            if time[time_index] <= merge_time:
+                                event = events[-1]
+                                events = events[:-1]
+                                new = False
+                    else:
+                        new = False
+                    if new:
                         event = {
-                            "start": time[time_index].strftime('%Y%m%d%H%M'),
-                            "end": time[time_index].strftime('%Y%m%d%H%M')
+                            "type": "localisedCurrents",
+                            "description": parameters["description"],
+                            "start": time[time_index].isoformat(),
+                            "end": time[time_index].isoformat(),
+                            "properties": {},
+                            "parameters": {
+                                "depth": parameters["depth"],
+                                "threshold": parameters["threshold"],
+                                "min_area": parameters["min_area"],
+                                "max_area": parameters["max_area"],
+                                "total_area": parameters["total_area"]
+                            }
                         }
                     else:
-                        event["end"] = time[time_index].strftime('%Y%m%d%H%M')
+                        event["end"] = time[time_index].isoformat()
 
                     data = labeled_array.copy()
                     for i, c in enumerate(cluster_sizes):
@@ -117,13 +154,13 @@ def localised_currents(folder, parameters):
                     plt.tight_layout()
                     plt.contour(list(range(data.shape[1])), list(range(data.shape[0])), data, levels=[0, 1], colors='r',
                                 linewidths=1, linestyles='dashed')
-                    os.makedirs(os.path.join(folder, "localisedCurrents"), exist_ok=True)
-                    plt.savefig(os.path.join(folder, "localisedCurrents/localisedCurrents_{}".format(time[time_index].strftime('%Y%m%d%H%M'))), bbox_inches='tight')
+                    os.makedirs(os.path.join(folder, "events"), exist_ok=True)
+                    plt.savefig(os.path.join(folder, "events/localisedCurrents_{}".format(time[time_index].isoformat())), bbox_inches='tight')
                     plt.close()
-                elif event != False:
+                elif event is not None:
                     events.append(event)
-                    event = False
-    if event != False:
+                    event = None
+    if event is not None:
         events.append(event)
     return events
 
@@ -138,10 +175,10 @@ def main(folder, docker):
     if "events" not in properties:
         print("No event definitions included in properties.json")
         return
-    events = {}
+    events = []
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
         for event_definition in properties["events"]:
-            events[event_definition["type"]] = event_functions[event_definition["type"]](folder, event_definition["parameters"])
+            events.append(event_functions[event_definition["type"]](folder, event_definition["parameters"]))
     else:
         raise ValueError("Postprocessing not defined for docker image {}".format(docker))
     with open(os.path.join(folder, "events.json"), 'w') as f:
