@@ -202,5 +202,15 @@
       334430000, 306030000, 280290000, 255360000, 230380000, 204900000,
       175270000, 140420000, 105240000, 75170000, 57990000, 41120000, 0
     ]
-  }
+  },
+  "events": [
+    {
+      "type": "upwelling",
+      "parameters": { "centroid_difference": 3, "depth": 0.7, "merge": 12, "description": "Detected by clustering the temperature values at 0.7m into two groups using Kmeans. When the centroid of the two groups exceeds 3degC this is defined as an upwelling event." }
+    },
+    {
+      "type": "localisedCurrents",
+      "parameters": { "threshold": 0.3, "depth": 0.7, "min_area": 1, "max_area": 5, "total_area": 580, "merge": 6, "description": "Detected by selecting regions at 0.7m with velocity greater than 0.3m/s, regions with between 10 and 50km2 are identified as localised currents." }
+    }
+  ]
 }
