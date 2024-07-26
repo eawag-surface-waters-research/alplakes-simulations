@@ -178,7 +178,7 @@ def main(folder, docker):
     events = []
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
         for event_definition in properties["events"]:
-            events.append(event_functions[event_definition["type"]](folder, event_definition["parameters"]))
+            events.extend(event_functions[event_definition["type"]](folder, event_definition["parameters"]))
     else:
         raise ValueError("Postprocessing not defined for docker image {}".format(docker))
     with open(os.path.join(folder, "events.json"), 'w') as f:
