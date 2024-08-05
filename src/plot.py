@@ -89,6 +89,7 @@ def plot_input_linegraph(inputs):
         timestamps = np.array(inputs[i]["timestamps"])
         plt.subplot(3, 3, i + 1)
         plt.plot(timestamps, data[:, y, x])
+        plt.xticks(rotation=45)
         plt.title(inputs[i]["file"].split(".")[0])
         nan_indices = np.where(np.isnan(data[:, y, x]))[0]
         nan_timestamps = timestamps[nan_indices]
@@ -150,7 +151,7 @@ def plot_delft3d_files(run):
         timestamps, data = extract_data_from_input_file(os.path.join(folder, f["file"]))
         f["timestamps"] = timestamps
         f["data"] = data
-    #plot_input_heatmaps(input_files, folder)
+    plot_input_heatmaps(input_files, folder)
     plot_input_linegraph(input_files)
 
     output_file = os.path.join(folder, "trim-Simulation_Web.nc")

@@ -22,12 +22,14 @@ class Delft3D(object):
         self.restart_file = ""
         self.profile = "None"
         self.files = [
-            {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0},
-            {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0},
+            {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0,
+             "min": 0, "max": 100},
+            {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0,
+             "min": 87000, "max": 108560},
             {"filename": 'RelativeHumidity.amr', "parameter": "RELHUM_2M", "quantity": "relative_humidity", "unit": "%",
-             "adjust": 0},
+             "adjust": 0, "min": 0, "max": 100},
             {"filename": 'ShortwaveFlux.ams', "parameter": "GLOB", "quantity": "sw_radiation_flux", "unit": "W/m2",
-             "adjust": 0},
+             "adjust": 0, "min": 0, "max": 1361},
             {"filename": 'Temperature.amt', "parameter": "T_2M", "quantity": "air_temperature", "unit": "Celsius",
              "adjust": -273.15},
             {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
@@ -232,7 +234,6 @@ class Delft3D(object):
                     raise ValueError("zone_letter and zone_number must be defined in grid with using UTM")
                 minx, miny = utm_to_latlng(minx, miny, grid["zone_number"], grid["zone_letter"])
                 maxx, maxy = utm_to_latlng(maxx, maxy, grid["zone_number"], grid["zone_letter"])
-                
 
             self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy), indent=1)
             self.log.info("Writing weather data to simulation files.", indent=1)
@@ -240,7 +241,10 @@ class Delft3D(object):
             days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
             for day in days:
                 self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
-                data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
+                if day >= datetime(2024, 7, 30):
+                    data = weather.download_meteolakes_icon_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
+                else:
+                    data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
