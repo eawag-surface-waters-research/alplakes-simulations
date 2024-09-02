@@ -78,20 +78,22 @@ def plot_input_heatmaps(inputs, folder):
             plt.close()
 
 
-def plot_input_linegraph(inputs):
+def plot_input_linegraph(inputs, nan_value=-999.0):
     fig = plt.figure(figsize=(18, 8))
     for i in range(len(inputs)):
         data = np.array(inputs[i]["data"])
-        min_value = np.nanmin(data)
         dims = data.shape
         y = int(dims[1]/2)
         x = int(dims[2]/2)
         timestamps = np.array(inputs[i]["timestamps"])
+        plot_data = data[:, y, x]
+        plot_data[plot_data == nan_value] = np.nan
+        min_value = np.nanmin(plot_data)
         plt.subplot(3, 3, i + 1)
-        plt.plot(timestamps, data[:, y, x])
+        plt.plot(timestamps, plot_data)
         plt.xticks(rotation=45)
         plt.title(inputs[i]["file"].split(".")[0])
-        nan_indices = np.where(np.isnan(data[:, y, x]))[0]
+        nan_indices = np.where(np.isnan(plot_data))[0]
         nan_timestamps = timestamps[nan_indices]
         nan_values = np.full(len(nan_indices), min_value)
         plt.scatter(nan_timestamps, nan_values, color='red', label='NaNs')
@@ -131,14 +133,13 @@ def plot_output_linegraph(inputs):
         plt.title(inputs[i]["name"].split(".")[0])
         nan_indices = np.where(np.isnan(data[:, y, x]))[0]
         nan_timestamps = timestamps[nan_indices]
-        print(np.array(nan_timestamps))
         nan_values = np.full(len(nan_indices), min_value)
         plt.scatter(nan_timestamps, nan_values, color='red', label='NaNs')
     plt.tight_layout()
     plt.show()
 
 
-def plot_delft3d_files(run):
+def plot_delft3d_files(run, heatmaps=False):
     folder = os.path.join("runs", run)
     input_files = [{"file": "CloudCoverage.amc"},
              {"file": "Pressure.amp"},
@@ -146,13 +147,19 @@ def plot_delft3d_files(run):
              {"file": "ShortwaveFlux.ams"},
              {"file": "Temperature.amt"},
              {"file": "WindU.amu"},
-             {"file": "WindV.amv"}]
+             {"file": "WindV.amv"},
+             {"file": "Secchi.scc"}]
     for f in input_files:
         timestamps, data = extract_data_from_input_file(os.path.join(folder, f["file"]))
         f["timestamps"] = timestamps
         f["data"] = data
-    plot_input_heatmaps(input_files, folder)
+    print("Plotting meteorological forcing data as line graphs")
     plot_input_linegraph(input_files)
+    if heatmaps:
+        print("Saving to file meteorological forcing data as heatmaps")
+        plot_input_heatmaps(input_files, folder)
+
+    print("For river inputs see auto-generated plots in the simulation folder")
 
     output_file = os.path.join(folder, "trim-Simulation_Web.nc")
     if os.path.exists(output_file):
@@ -164,8 +171,14 @@ def plot_delft3d_files(run):
             timestamps, data = extract_data_from_output_file(output_file, p["variable"], p["pattern"])
             p["timestamps"] = timestamps
             p["data"] = data
-        plot_output_heatmaps(parameters, folder)
+
+        print("Plotting results data as line graphs")
         plot_output_linegraph(parameters)
+        if heatmaps:
+            print("Saving to file results data as heatmaps")
+            plot_output_heatmaps(parameters, folder)
+    else:
+        print("No output files located, run simulation to visualise outputs")
 
 
 if __name__ == "__main__":
