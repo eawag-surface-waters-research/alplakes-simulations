@@ -13,7 +13,6 @@ import weather
 from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng
 
 
-
 class Delft3D(object):
     def __init__(self, params):
         self.params = params
@@ -247,7 +246,7 @@ class Delft3D(object):
                     data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
+                    weather.write_weather_data_to_file(data["time"], data["variables"][file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
 
             self.log.end_stage()
         except Exception as e:
@@ -284,8 +283,6 @@ class Delft3D(object):
                     f.write('\nn_quantity = 1')
                     f.write('\nquantity1 = Secchi_depth')
                     f.write('\nunit1 = m' + '\n')
-
-
 
                 if "monthly" in self.properties["secchi"]:
                     self.log.info("Writing fixed value for secchi depth", indent=1)

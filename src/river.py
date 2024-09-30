@@ -92,8 +92,8 @@ def clean_smooth_resample(parameters, start_date, end_date, log=logger, plot=Fal
                                  station["id"], ),
                          indent=2)
                 # Clean
-                df = pd.DataFrame(station[parameter_type]["data"])
-                df.columns = ["ds", "y"]
+
+                df = pd.DataFrame({"ds": station[parameter_type]["data"]["time"], "y": station[parameter_type]["data"]["variable"]["data"]})
                 df["ds"] = pd.to_datetime(df["ds"], errors="coerce", utc=True)
                 df["y"] = pd.to_numeric(df["y"], errors="coerce")
                 df = df.dropna()
