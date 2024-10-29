@@ -391,33 +391,25 @@ class Delft3D(object):
             variables = [file["parameter"] for file in self.files]
             days = [self.params["start"] + timedelta(days=x) for x in
                     range((min(self.params["today"], self.params["end"]) - self.params["start"]).days + 1)]
-
+            data_for_nc = dict()
             for day in days:
                 self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
                 data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
+                if self.params['software'] == 'delft3dfm':
+                    if len(data_for_nc) == 0:
+                        data_for_nc = data
+                    else:
+                        daily_data = data
+                        data_for_nc['time'].extend(daily_data['time'])
+                        for key in daily_data['variables']:
+                            data_for_nc['variables'][key]['data'].extend(daily_data['variables'][key]['data'])
                 for file in self.files:
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    weather.write_weather_data_to_file(data["time"], data[file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
+                    weather.write_weather_data_to_file(data["time"], data["variables"][file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
 
             if self.params['software'] == 'delft3dfm':
                 self.log.info("Building netcdf weather input file for Delft3D FM", indent=1)
-                i = 0
-                data = dict()
-                for day in days:
-                    if i == 0:
-                        data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables,
-                                                                      self.params["api"], self.params["today"])
-                    else:
-                        daily_data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables,
-                                                                            self.params["api"], self.params["today"])
-                        for key in daily_data:
-                            if type(data[key]) == dict:
-                                data[key]['data'].extend(daily_data[key]['data'])
-                            else:
-                                if key == 'time':
-                                    data[key].extend(daily_data[key])
-                    i = i + 1
-                data_grid = weather.build_data_grid(system, gxx, gyy, data, no_data_value, warning=self.log.warning)
+                data_grid = weather.build_data_grid(system, gxx, gyy, data_for_nc, no_data_value, warning=self.log.warning)
                 self.build_nc_weather_data_file(data_grid, gxx, gyy)
 
             self.log.end_stage()

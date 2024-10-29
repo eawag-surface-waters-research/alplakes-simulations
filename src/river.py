@@ -18,7 +18,7 @@ def empty_arrays(parameters, start, end, no_data=0.0):
     time = np.arange(start, end, timedelta(minutes=parameters["dt"]))
     for river in parameters["rivers"]:
         df = pd.DataFrame(time, columns=['time'])
-        df["minutes"] = (df["time"] - origin).astype('timedelta64[m]')
+        df["minutes"] = (df["time"] - origin).dt.total_seconds() / 60
         df["flow"] = no_data
         if "average_monthly_temperature" in river:
             df["temperature"] = monthly_temperature(time, river["average_monthly_temperature"])
@@ -121,9 +121,9 @@ def clean_smooth_resample(parameters, start_date, end_date, log=logger, plot=Fal
                 resample = "linear"
                 if "resample" in station[parameter_type]:
                     resample = station[parameter_type]["resample"]
-                f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind=resample, bounds_error=False,
+                f = interp1d(df["ds"].astype('int64') / 10 ** 9, df["y"], kind=resample, bounds_error=False,
                              fill_value=np.nan)
-                df = pd.DataFrame({"ds": time, "y": f(time.astype('int') / 10 ** 6)})
+                df = pd.DataFrame({"ds": time, "y": f(time.astype('int64') / 10 ** 6)})
 
                 df['y'].notnull().where(df['y'].notnull() < station[parameter_type]["max"],
                                         station[parameter_type]["max"],

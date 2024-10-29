@@ -29,10 +29,8 @@ def build_data_grid(system, gxx, gyy, data, no_data_value, method='linear', warn
 
     grid_data = dict()
     grid_data['time'] = data['time']
-    for key in data:
-        var = data[key]
-        if type(var) == list:
-            continue
+    for key in data['variables']:
+        var = data['variables'][key]
         for i in range(len(data['time'])):
             v = np.array(var['data'][i]).flatten()
             if len(v[~np.isnan(v)]) == 0:
