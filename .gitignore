@@ -6,6 +6,7 @@ operational/output
 runs/*
 !runs/.gitkeep
 notebooks/.ipynb_checkpoints
+notebooks/example.nc
 credentials.json
 src/test.py
 externaldata
