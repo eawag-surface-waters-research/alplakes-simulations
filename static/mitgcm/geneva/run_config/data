@@ -1,0 +1,121 @@
+# Physical model parameters
+
+ &PARM01
+ readBinaryPrec = 64
+
+# Initial temperature/salinity profiles using SHL2 data for Jan 15th, 2019.
+ tRef = 
+    !initial_temperature!
+    
+ sRef = 
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050,
+    
+
+# Choice of computational models:
+ nonHydrostatic      = .FALSE.
+ saltStepping        = .FALSE.
+ tempAdvScheme       = 33
+ staggerTimeStep     = .TRUE.
+ implicitViscosity   = .TRUE.
+ implicitDiffusion   = .TRUE.
+ 
+# IO configuration
+ useSingleCpuIO=.TRUE.,
+ globalFiles=.FALSE.,
+
+# Equation of state, scheme by McDougall et al (2003)
+ eosType             = 'MDJWF'
+
+# Options for modeling surface of teh lake
+ rigidLid            = .FALSE.
+ implicitFreeSurface = .TRUE.
+
+# Bottom of the lake: use partial cells and no-slip BCs with quadratic friction coeff.
+ no_slip_sides       = .FALSE.
+ no_slip_bottom      = .FALSE.
+ hFacMin             = 0.2
+ bottomDragQuadratic = 0.0025
+
+# Other options
+ allowFreezing               = .FALSE.
+ exactConserv                = .TRUE.
+ usejamartwetpoints          = .TRUE.
+ vectorInvariantMomentum     = .TRUE.
+ highOrderVorticity          = .TRUE.
+ useEnergyConservingCoriolis = .TRUE.
+ f0                          = 1.068e-4
+ beta                        = 1e-11
+ plotLevel                   = 0
+ viscAz                      = 1e-06
+ diffKzT                     = 1.4e-07
+
+###################################################
+# Parameters to be inferred in the data assimilation framework.
+# viscAhGrid, diffKhT, viscC2smag - grid-dependent parameters for horizontal processes.
+ viscC2smag          = 0.3
+ viscAhGrid          = 0.00015142478199073935
+ diffKhT             = 0.02366012218605303
+ &
+
+###################################################
+# Elliptic solver parameters
+ &PARM02
+ cg2dMaxIters        = 300
+ cg2dTargetResidual  = 1.E-13
+ cg3dMaxIters        = 20
+ cg3dTargetResidual  = 1.E-8
+ &
+
+###################################################
+# Time stepping parameters.
+ &PARM03
+ deltaT              = !time_step!
+ startTime           = !start_time!
+ endTime             = !end_time!
+#  3024000.0
+
+# Adams-Bashforth (2nd order) stabilizing parameter.
+ abEps               = 0.03
+
+# interval to write model state/snapshot data (s)
+ dumpFreq            = 3600
+
+# interval to write monitor output (s).
+ monitorFreq         = 3600
+ monitorSelect       = 1
+ 
+# Pickup/restart options. We will also quietly track the iteration number.
+#nIter0              = 0
+ writePickupAtEnd    = .TRUE.
+ pickupSuff          = "!pickup_number!"
+
+# 172800.0
+ pChkptFreq=604800.0,
+ chkptFreq=0.0,
+ &
+
+###################################################
+# Gridding parameters
+ &PARM04
+ usingCartesianGrid  = .TRUE.
+ dYspacing           = !grid_resolution!
+ dXspacing           = !grid_resolution!
+ delZ = 
+    !dz_grid!
+    
+ &
+
+# Input bathymetry
+ &PARM05
+ bathyFile           = "../binary_data/bathy.bin"
+ &
+

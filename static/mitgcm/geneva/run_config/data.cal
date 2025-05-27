@@ -1,0 +1,8 @@
+# Start day of the simulation, format YYYYMMDD, HHMMSS
+
+ &CAL_NML
+ TheCalendar = 'gregorian'
+ startDate_1 = !reference_date!
+ startDate_2 = 000000
+ &
+

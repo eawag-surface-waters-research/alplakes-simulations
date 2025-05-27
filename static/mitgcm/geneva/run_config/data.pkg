@@ -1,0 +1,11 @@
+# Can turn on/off certain packages at run-time
+
+ &PACKAGES
+ useOBCS = .FALSE.
+ useEXF  = .TRUE.
+ useMNC  = .TRUE.
+ useCAL  = .TRUE.
+ useDIAGNOSTICS=.TRUE.,
+ useKPP  = .TRUE.
+ &
+
