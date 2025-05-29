@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import boto3
 import shutil
@@ -748,3 +749,74 @@ def get_closest_index(value, array):
     elif value < (2 * sorted_array[0] - sorted_array[-1]):
         raise ValueError("Value {} less than min available ({})".format(value, sorted_array[0]))
     return (np.abs(array - value)).argmin()
+
+
+class MitgcmGrid:
+    """Class representing an MITgcm grid, with optional loading from .npy files."""
+
+    def __init__(self):
+        """Initialize an empty MITgcm grid."""
+        self.x = np.array([])
+        self.y = np.array([])
+        self.lat_grid = np.array([])
+        self.lon_grid = np.array([])
+        self.dz = np.array([])
+        self.parameters = {}
+
+    def load_from_path(self, path_grid: str):
+        """
+        Load grid data from a given folder containing .npy files.
+
+        Args:
+            path_grid (str): Path to the folder containing the grid files.
+
+        Raises:
+            FileNotFoundError: If any required grid file is missing.
+            RuntimeError: If loading fails due to other errors.
+        """
+        try:
+            self.x = np.load(os.path.join(path_grid, 'x.npy'))
+            self.y = np.load(os.path.join(path_grid, 'y.npy'))
+            self.lat_grid = np.load(os.path.join(path_grid, 'lat_grid.npy'))
+            self.lon_grid = np.load(os.path.join(path_grid, 'lon_grid.npy'))
+            self.dz = pd.read_csv(os.path.join(path_grid, 'dz.csv'), header=None).to_numpy()
+            with open(os.path.join(path_grid, 'parameters.json'), 'r') as file:
+                self.parameters = json.load(file)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Missing grid file: {e.filename}") from e
+        except Exception as e:
+            raise RuntimeError(f"Error loading grid data: {e}") from e
+
+
+def get_mitgcm_grid(path_folder_grid: str) -> MitgcmGrid:
+    grid = MitgcmGrid()
+    grid.load_from_path(path_folder_grid)
+    return grid
+
+def modify_arguments(param_name: str, values: np.array, file_path):
+    """
+    Function to modify run-time parameters, based on variable name, with the
+    assumption that they are stored the file as '!varName!'
+      param_name  - parameter name that should be replaced in the config file
+      values - values replacing the param_name in the config file
+      fileIn  - 00-template_mitgcm configuration
+      fileOut - output run-time configuration
+    """
+
+    with open(file_path, 'r') as infile:
+        content = infile.read()
+
+    str_values = ''
+    if len(values) > 1:
+        for row in values:
+            for val in row:
+                if val != np.nan:
+                    str_values += str(str(val) + ',')
+            str_values += '\n'
+    else:
+        str_values = str(values[0])
+
+    modified_content = content.replace(param_name, str_values)
+
+    with open(file_path, 'w') as outfile:
+        outfile.write(modified_content)

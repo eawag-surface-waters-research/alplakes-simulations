@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments
 
 
 class Delft3D(object):
@@ -410,20 +410,8 @@ class MitGCM(object):
         self.simulation_dir = ""
         self.restart_file = ""
         self.profile = "None"
-        self.files = [
-            {"filename": 'CloudCoverage.amc', "parameter": "CLCT", "quantity": "cloudiness", "unit": "%", "adjust": 0,
-             "min": 0, "max": 100},
-            {"filename": 'Pressure.amp', "parameter": "PMSL", "quantity": "air_pressure", "unit": "Pa", "adjust": 0,
-             "min": 87000, "max": 108560},
-            {"filename": 'RelativeHumidity.amr', "parameter": "RELHUM_2M", "quantity": "relative_humidity", "unit": "%",
-             "adjust": 0, "min": 0, "max": 100},
-            {"filename": 'ShortwaveFlux.ams', "parameter": "GLOB", "quantity": "sw_radiation_flux", "unit": "W/m2",
-             "adjust": 0, "min": 0, "max": 1361},
-            {"filename": 'Temperature.amt', "parameter": "T_2M", "quantity": "air_temperature", "unit": "Celsius",
-             "adjust": -273.15},
-            {"filename": 'WindU.amu', "parameter": "U", "quantity": "x_wind", "unit": "m s-1", "adjust": 0},
-            {"filename": 'WindV.amv', "parameter": "V", "quantity": "y_wind", "unit": "m s-1", "adjust": 0},
-        ]
+        self.grid = ""
+        self.initial_temperature = np.array([0])
 
         if "log" in params and params["log"]:
             log_prefix = "{}_{}_{}".format(params["model"].replace("/", "_"), params["start"], params["end"])
@@ -439,13 +427,13 @@ class MitGCM(object):
     def process(self):
         self.initialise_simulation_directory()
         self.copy_static_data()
+        self.load_properties()
+        self.load_grid()
+        self.initial_conditions()
+        self.update_control_files()
+        self.weather_data_files()
         exit()
         #self.collect_restart_file()
-        self.load_properties()
-        self.update_control_file()
-        self.weather_data_files()
-        self.secchi_data_files()
-        self.river_data_files()
         if self.params["upload"]:
             self.upload_data()
         if self.params["run"]:
@@ -542,42 +530,71 @@ class MitGCM(object):
             self.log.error()
             raise
 
-    def update_control_file(self, origin=datetime(2008, 3, 1), period=180):
+    def load_grid(self):
+        self.log.begin_stage("Loading grid.")
+        self.grid = get_mitgcm_grid(os.path.join(self.simulation_dir, "grid"))
+        self.log.end_stage()
+
+    def initial_conditions(self):
+        print("Initial conditions")
+
+    def update_control_files(self, origin=datetime(2008, 3, 1), period=180):
         try:
-            self.log.begin_stage("Updating control file dates.")
-            self.log.info("Reading simulation file.", indent=1)
-            with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'r') as f:
-                lines = f.readlines()
-            start = "{:.7e}".format((self.params["start"] - origin).total_seconds() / 60)
-            end = "{:.7e}".format(((self.params["end"] - origin).total_seconds() / 60) - period)
-            restid_idx = 0
-            for i in range(len(lines)):
-                if "Restid" in lines[i]:
-                    lines[i] = "Restid = #" + self.restart_file.replace("tri-rst.", "") + "#\n"
-                    restid_idx = i
-                if "Tstart" in lines[i]:
-                    lines[i] = "Tstart = " + start + "\n"
-                if "Tstop" in lines[i]:
-                    lines[i] = "Tstop = " + end + "\n"
-                if lines[i].split(" ")[0] in ["Flmap", "Flhis", "Flwq"]:
-                    lines[i] = "{} = {} {} {}\n".format(lines[i].split(" ")[0], start, str(period), end)
+            self.log.begin_stage("Updating control files.")
+            start_time_in_second_from_ref_date = (self.params["start"] - origin).total_seconds()
+            end_time_in_second_from_ref_date = (self.params["end"] - origin).total_seconds()
 
-            if self.profile != "None":
-                self.log.info("Reading profile from: {}".format(self.profile), indent=2)
-                with open(os.path.join(self.simulation_dir, "profiles", self.profile), 'r') as f:
-                    T0 = f.readlines()
-                lines = lines[:restid_idx] + T0 + lines[restid_idx + 1:]
+            self.log.info("Editing run_config/data.cal", indent=1)
+            modify_arguments('!reference_date!', [origin.strftime('%Y%m%d')], os.path.join(self.simulation_dir, 'run_config/data.cal'))
 
-            self.log.info("Writing updated simulation file.", indent=1)
-            with open(os.path.join(self.simulation_dir, "Simulation_Web.mdf"), 'w') as f:
-                f.writelines(lines)
+            self.log.info("Editing run_config/data.exf", indent=1)
+            modify_arguments('!start_date!', [self.params["start"].strftime('%Y%m%d')], os.path.join(self.simulation_dir, 'run_config/data.exf'))
 
+            self.log.info("Editing run_config/data", indent=1)
+            file_path = os.path.join(self.simulation_dir, 'run_config/data')
+            modify_arguments('!initial_temperature!', self.initial_temperature, file_path)
+            modify_arguments('!start_time!', [start_time_in_second_from_ref_date], file_path)
+            modify_arguments('!end_time!', [end_time_in_second_from_ref_date], file_path)
+            modify_arguments('!pickup_number!', [""], file_path)
+            modify_arguments('!grid_resolution!', [self.grid.parameters["grid_resolution"]], file_path)
+            modify_arguments('!time_step!', [self.properties["timestep"]], file_path)
+            modify_arguments('!dz_grid!', self.grid.dz, file_path)
+
+            Px = self.properties["Px"]
+            Py = self.properties["Py"]
+            exch2_path = os.path.join(self.simulation_dir, 'run_config/data.exch2')
+            blank_list_path = os.path.join(self.simulation_dir, f"grid/land_cores_Px{Px}_Py{Py}.txt")
+            if os.path.isfile(exch2_path) and os.path.isfile(blank_list_path):
+                self.log.info("Editing run_config/data.exch2. Using exch2 to avoid computing empty grid regions", indent=1)
+                with open(blank_list_path, "r") as file:
+                    nb_blank_cores, blank_list = file.read().splitlines()
+                Px = (Px * Py) - int(nb_blank_cores)
+                Py = 1
+                modify_arguments('!Nx!', [self.grid.parameters["Nx"]], exch2_path)
+                modify_arguments('!Ny!', [self.grid.parameters["Ny"]], exch2_path)
+                modify_arguments('!blank_list!', [blank_list], exch2_path)
+                self.log.info("Actually using {} cores".format(Px), indent=2)
+            else:
+                self.log.info("exch2 files not available, computing entire grid.", indent=1)
+
+            self.log.info("Editing code/SIZE.h", indent=1)
+            size_file = os.path.join(self.simulation_dir, "code/SIZE.h")
+            Nr = np.count_nonzero(~np.isnan(self.grid.dz))
+            sNx = int(self.grid.parameters["Nx"] / self.properties["Px"])
+            sNy = int(self.grid.parameters["Ny"] / self.properties["Py"])
+            modify_arguments('!Px!', [Px], size_file)
+            modify_arguments('!Py!', [Py], size_file)
+            modify_arguments('!Nx!', [self.grid.parameters["Nx"]], size_file)
+            modify_arguments('!Ny!', [self.grid.parameters["Ny"]], size_file)
+            modify_arguments('!Nr!', [Nr], size_file)
+            modify_arguments('!sNx!', [sNx], size_file)
+            modify_arguments('!sNy!', [sNy], size_file)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
             raise
 
-    def weather_data_files(self, buffer=10, no_data_value="-999.00"):
+    def weather_data_files(self, buffer=0.02, no_data_value="-999.00"):
         try:
             self.log.begin_stage("Creating weather data files.")
 
@@ -596,22 +613,7 @@ class MitGCM(object):
             maxx = maxx + buffer * grid["dx"]
             maxy = maxy + buffer * grid["dy"]
 
-            self.log.info("Initialise the output meteo files and write their headers", indent=1)
-            for i in range(len(self.files)):
-                with open(os.path.join(self.simulation_dir, self.files[i]["filename"]), "w") as f:
-                    f.write('FileVersion = 1.03')
-                    f.write('\nfiletype = meteo_on_equidistant_grid')
-                    f.write('\nNODATA_value = ' + str(no_data_value))
-                    f.write('\nn_cols = ' + str(len(gx)))
-                    f.write('\nn_rows = ' + str(len(gy)))
-                    f.write('\ngrid_unit = m')
-                    f.write('\nx_llcenter = ' + str(gx[0]))
-                    f.write('\ny_llcenter = ' + str(gy[0]))
-                    f.write('\ndx = ' + str(grid["dx"]))
-                    f.write('\ndy = ' + str(grid["dy"]))
-                    f.write('\nn_quantity = 1')
-                    f.write('\nquantity1 = ' + self.files[i]["quantity"])
-                    f.write('\nunit1 = ' + self.files[i]["unit"] + '\n')
+
 
             if system == "WGS84":
                 self.log.info("Grid using WGS84 coordinate system.", indent=1)
@@ -639,90 +641,6 @@ class MitGCM(object):
                     self.log.info("Processing parameter " + file["parameter"], indent=3)
                     weather.write_weather_data_to_file(data["time"], data["variables"][file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
 
-            self.log.end_stage()
-        except Exception as e:
-            self.log.error()
-            raise
-
-    def secchi_data_files(self, no_data_value="-999.00"):
-        try:
-            self.log.begin_stage("Creating secchi data file.")
-            if "secchi" not in self.properties:
-                self.log.warning("No secchi params specified, skipping stage.", indent=1)
-            else:
-                self.log.info("Creating the secchi grid", indent=1)
-                grid = self.properties["grid"]
-                minx, miny, maxx, maxy = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"]
-                gx = np.arange(minx, maxx + grid["dx"], grid["dx"])
-                gy = np.arange(miny, maxy + grid["dy"], grid["dy"])
-                scaling_factor = 1 if "scaling" not in self.properties["secchi"] else float(
-                    self.properties["secchi"]["scaling"])
-
-                self.log.info("Initialise the output secchi file and write the header", indent=1)
-                file = os.path.join(self.simulation_dir, "Secchi.scc")
-                with open(file, "w") as f:
-                    f.write('FileVersion = 1.03')
-                    f.write('\nfiletype = meteo_on_equidistant_grid')
-                    f.write('\nNODATA_value = ' + str(no_data_value))
-                    f.write('\nn_cols = ' + str(len(gx)))
-                    f.write('\nn_rows = ' + str(len(gy)))
-                    f.write('\ngrid_unit = m')
-                    f.write('\nx_llcenter = ' + str(gx[0]))
-                    f.write('\ny_llcenter = ' + str(gy[0]))
-                    f.write('\ndx = ' + str(grid["dx"]))
-                    f.write('\ndy = ' + str(grid["dy"]))
-                    f.write('\nn_quantity = 1')
-                    f.write('\nquantity1 = Secchi_depth')
-                    f.write('\nunit1 = m' + '\n')
-
-                if "monthly" in self.properties["secchi"]:
-                    self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_monthly_secchi_to_file(file, self.properties["secchi"]["monthly"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
-                elif "fixed" in self.properties["secchi"]:
-                    self.log.info("Writing fixed value for secchi depth", indent=1)
-                    secchi.write_fixed_secchi_to_file(file, self.properties["secchi"]["fixed"], scaling_factor, self.params["start"], self.params["end"], len(gx), len(gy))
-                else:
-                    raise ValueError("No method specified for generating secchi input file.")
-            self.log.end_stage()
-        except Exception as e:
-            self.log.error()
-            raise
-
-    def river_data_files(self, pre_days=7, post_days=2):
-        try:
-            self.log.begin_stage("Creating river data file.")
-            if "rivers" not in self.properties:
-                self.log.warning("No river params specified, skipping stage.", indent=1)
-            else:
-                start = self.params["start"] - timedelta(days=pre_days)
-                end = self.params["end"]
-                if self.params["end"].strftime("%Y%m%d") == self.params["today"].strftime("%Y%m%d") or self.params["end"] > self.params["today"]:
-                    self.log.info("Requested timeframe exceeds available data, data from {} to {} will be forecast."
-                                  .format(self.params["today"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d")), indent=1)
-                    forecast = True
-                else:
-                    if self.params["end"] + timedelta(days=post_days) < self.params["today"]:
-                        end = self.params["end"] + timedelta(days=post_days)
-                    forecast = False
-
-                self.log.info("Generating empty arrays", indent=1)
-                self.properties = river.empty_arrays(self.properties, self.params["start"], self.params["end"])
-
-                self.log.info("Collecting river data from {} to {}".format(start, end), indent=1)
-                self.properties = river.download_bafu_hydrodata(self.properties, start, end, self.params["api"], self.params["today"], log=self.log)
-
-                self.log.info("Cleaning, smoothing and resampling downloaded data.", indent=1)
-                self.properties = river.clean_smooth_resample(self.properties, start, end, log=self.log)
-
-                if forecast:
-                    self.log.info("Forcasting beyond measured data.", indent=1)
-                    self.properties = river.forecast(self.properties, log=self.log)
-
-                self.log.info("Map station data to rivers and compute flow balance.", indent=1)
-                self.properties = river.flow_balance(self.properties, self.simulation_dir, log=self.log)
-
-                self.log.info("Write river data to files.", indent=1)
-                self.properties = river.write_river_data_to_file(self.properties, self.simulation_dir)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
