@@ -17,12 +17,15 @@ from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 
 
-def download_data(query, attempts=3, timeout=120, sleep=30):
+def download_data(query, attempts=3, timeout=120, sleep=30, download=False):
     print(query)
     for attempt in range(attempts):
         try:
             response = requests.get(query, timeout=timeout)
             if response.status_code == 200:
+                if download:
+                    with open(download, "w") as file:
+                        file.write(response.text)
                 return response.json()
             else:
                 raise ValueError("Unable to download data, HTTP error code {}".format(response.status_code))
@@ -820,3 +823,65 @@ def modify_arguments(param_name: str, values: np.array, file_path):
 
     with open(file_path, 'w') as outfile:
         outfile.write(modified_content)
+
+def calculate_specific_humidity(temp, relhum, atm_press):
+    """
+    Compute specific humidity from air temperature, relative humidity and atmospheric pressure.
+
+    - temp: Air temperature in Kelvin
+    - relhum: Relative humidity in %
+    - atm_press: Atmospheric pressure in Pascal
+    """
+    # temp needs to be in celcius
+    temp = temp - 273.15
+    # atmospheric pressure should be in hPa
+    atm_press = atm_press / 100.0
+    # saturation vapour pressure (e_s)
+    e_s = 6.112 * np.exp((17.67 * temp) / (temp + 243.5))
+    # actual vapour pressure (e)
+    e = (relhum / 100) * e_s
+    # Step 3: Calculate the specific humidity (q)
+    q = (0.622 * e) / (atm_press - (0.378 * e))
+
+    return (q)
+
+
+def compute_vapor_pressure(atemp, relhum):
+    """
+    Calculate vapor pressure using the Magnus formula.
+
+    Parameters:
+    - temperature (float or numpy array): Air temperature in Kelvin
+    - relhum (float or numpy array): Relative humidity as a percentage (e.g., 60 for 60%)
+
+    Returns:
+    - vapor_pressure (float or numpy array): Vapor pressure in hPa (hectopascals)
+    """
+    a = 17.27
+    b = 237.7
+
+    rh_fraction = relhum / 100.0
+    atemp_celsius = atemp-273.15
+
+    saturation_vapor_pressure = 6.112 * np.exp((a * atemp_celsius) / (atemp_celsius + b))
+
+    return rh_fraction * saturation_vapor_pressure  # vapor pressure in mbar (=hPa)
+
+
+def compute_longwave_radiation(atemp, relhum, cloud_cover):
+    """
+    Compute longwave radiation from air temperature and cloud cover.
+
+    - temp: Air temperature in Kelvin
+    - cloud_cover: %
+    """
+    # cloud cover should be from 0 to 1
+    cloud_cover = cloud_cover/100
+    vaporPressure = compute_vapor_pressure(atemp, relhum)  # in units mbar
+    A_L = 0.03   # Infrared radiation albedo
+    a = 1.09     # Calibration parameter
+
+    E_a = a * (1 + 0.17 * np.power(cloud_cover, 2)) * 1.24 * np.power(vaporPressure / atemp, 1./7)  # emissivity
+
+    lwr = (1 - A_L) * 5.67e-8 * E_a * np.power(atemp, 4)
+    return lwr

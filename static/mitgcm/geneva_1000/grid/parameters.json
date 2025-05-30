@@ -1,5 +1,6 @@
 {
   "grid_resolution": 1000,
+  "buffer": 0.02,
   "system": "CH1903",
   "Nx": 70,
   "Ny": 26

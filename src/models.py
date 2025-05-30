@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation
 
 
 class Delft3D(object):
@@ -429,11 +429,10 @@ class MitGCM(object):
         self.copy_static_data()
         self.load_properties()
         self.load_grid()
+        # self.collect_restart_file()
         self.initial_conditions()
         self.update_control_files()
         self.weather_data_files()
-        exit()
-        #self.collect_restart_file()
         if self.params["upload"]:
             self.upload_data()
         if self.params["run"]:
@@ -536,7 +535,9 @@ class MitGCM(object):
         self.log.end_stage()
 
     def initial_conditions(self):
-        print("Initial conditions")
+        self.log.begin_stage("Setting intial conditions.")
+        self.initial_temperature = np.full(self.grid.dz.shape, 4.0)
+        self.log.end_stage()
 
     def update_control_files(self, origin=datetime(2008, 3, 1), period=180):
         try:
@@ -589,58 +590,69 @@ class MitGCM(object):
             modify_arguments('!Nr!', [Nr], size_file)
             modify_arguments('!sNx!', [sNx], size_file)
             modify_arguments('!sNy!', [sNy], size_file)
+
+            self.log.info("Editing entrypoint.sh", indent=1)
+            modify_arguments('!cores!', [Px], os.path.join(self.simulation_dir, "entrypoint.sh"))
+
             self.log.end_stage()
         except Exception as e:
             self.log.error()
             raise
 
-    def weather_data_files(self, buffer=0.02, no_data_value="-999.00"):
+    def weather_data_files(self):
         try:
             self.log.begin_stage("Creating weather data files.")
 
             self.log.info("Creating the meteo grid", indent=1)
-            grid = self.properties["grid"]
-            if "system" not in grid:
-                raise ValueError("System must be defined.")
-            minx, miny, maxx, maxy, system = grid["minx"], grid["miny"], grid["maxx"], grid["maxy"], grid["system"]
-            gx = np.arange(minx, maxx + grid["dx"], grid["dx"])
-            gy = np.arange(miny, maxy + grid["dy"], grid["dy"])
-            gxx, gyy = np.meshgrid(gx, gy)
+            minx, maxx = self.grid.lat_grid.min(), self.grid.lat_grid.max()
+            miny, maxy = self.grid.lon_grid.min(), self.grid.lon_grid.max()
+            buffer = self.grid.parameters["buffer"]
 
             self.log.info("Define buffer region to fill grid", indent=1)
-            minx = minx - buffer * grid["dx"]
-            miny = miny - buffer * grid["dy"]
-            maxx = maxx + buffer * grid["dx"]
-            maxy = maxy + buffer * grid["dy"]
-
-
-
-            if system == "WGS84":
-                self.log.info("Grid using WGS84 coordinate system.", indent=1)
-            elif system == "CH1903":
-                self.log.info("Grid using ch1903 coordinate system, converting to WGS84 to collect weather data.", indent=1)
-                minx, miny = ch1903_to_latlng(minx, miny)
-                maxx, maxy = ch1903_to_latlng(maxx, maxy)
-            elif system == "UTM":
-                if "zone_letter" not in grid or "zone_number" not in grid:
-                    raise ValueError("zone_letter and zone_number must be defined in grid with using UTM")
-                minx, miny = utm_to_latlng(minx, miny, grid["zone_number"], grid["zone_letter"])
-                maxx, maxy = utm_to_latlng(maxx, maxy, grid["zone_number"], grid["zone_letter"])
+            minx = minx - buffer
+            miny = miny - buffer
+            maxx = maxx + buffer
+            maxy = maxy + buffer
 
             self.log.info("Collecting weather data for region: [{}, {}] [{}, {}]".format(minx, miny, maxx, maxy), indent=1)
-            self.log.info("Writing weather data to simulation files.", indent=1)
-            variables = [file["parameter"] for file in self.files]
+            variables = ['T_2M', 'U', 'V', 'GLOB', 'RELHUM_2M', 'PMSL', 'CLCT', 'PS']
             days = [self.params["start"]+timedelta(days=x) for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days+1)]
             for day in days:
                 self.log.info("Collecting data for {} from remote API.".format(day), indent=2)
                 if day >= datetime(2024, 7, 30):
-                    data = weather.download_meteolakes_icon_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
+                    weather.download_meteolakes_icon_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"], download=os.path.join(self.simulation_dir, "weather"))
                 else:
-                    data = weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"])
-                for file in self.files:
-                    self.log.info("Processing parameter " + file["parameter"], indent=3)
-                    weather.write_weather_data_to_file(data["time"], data["variables"][file["parameter"]]["data"], data["lat"], data["lng"], gxx, gyy, system, file, self.simulation_dir, no_data_value, warning=self.log.warning)
+                    weather.download_meteolakes_cosmo_area(minx, miny, maxx, maxy, day, variables, self.params["api"], self.params["today"], download=os.path.join(self.simulation_dir, "weather"))
 
+            self.log.info("Writing weather data to simulation files.", indent=1)
+            binary_folder = os.path.join(self.simulation_dir, "binary_data")
+            weather_folder = os.path.join(self.simulation_dir, "weather")
+            os.makedirs(binary_folder, exist_ok=True)
+
+            def process_variable(var_name, output_name):
+                self.log.info(f'Interpolating {var_name} to grid...', indent=2)
+                data = weather.weather_files_to_grid(weather_folder, var_name, self.params["start"], self.params["end"], self.grid, 1)
+                weather.write_binary(os.path.join(binary_folder, f'{output_name}.bin'), data)
+                return data
+
+            process_variable('U', 'u10')
+            process_variable('V', 'v10')
+            process_variable('GLOB', 'swdown')
+
+            atemp = process_variable('T_2M', 'atemp')
+            apress = process_variable('PS', 'apressure')
+
+            self.log.info('Computing specific humidity (aqh)...', indent=2)
+            relhum = process_variable('RELHUM_2M', 'relhum')
+            aqh = calculate_specific_humidity(atemp, relhum, apress)
+            weather.write_binary(os.path.join(binary_folder, 'aqh.bin'), aqh)
+
+            self.log.info('Computing longwave radiation (lwdown)...', indent=2)
+            clct = process_variable('CLCT', 'clct')
+            lwr = compute_longwave_radiation(atemp, relhum, clct)
+            weather.write_binary(os.path.join(binary_folder, 'lwdown.bin'), lwr)
+
+            shutil.rmtree(weather_folder)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -671,20 +683,36 @@ class MitGCM(object):
     def run_simulation(self):
         try:
             self.log.begin_stage("Running simulation.")
-            self.log.info("Running simulation as a subprocess.", indent=1)
-            print("-v {}:/job".format(self.simulation_dir))
-            process = subprocess.Popen(["docker", "run", "-v", "{}:/job".format(self.simulation_dir),
-                                        self.docker],
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE,
-                                       universal_newlines=True,
-                                       cwd=self.simulation_dir)
-            error = self.log.subprocess(process, error="Flow exited abnormally")
+            self.log.info("Building docker container.", indent=1)
+            docker = "{}_{}".format(self.docker, self.params["model"].split("/")[1])
+            process = subprocess.Popen(
+                ["docker", "build", "-t", docker, "."],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                cwd=self.simulation_dir,
+                bufsize=1
+            )
+            for line in process.stdout:
+                print(line, end='')
+            process.wait()
             if process.returncode != 0:
-                output, error = process.communicate()
-                raise RuntimeError("Subprocess failed with the following error: {}".format(error))
-            elif error:
-                raise RuntimeError("Simulation failed check the logs for more information.")
+                raise RuntimeError("Docker build failed with exit code {}".format(process.returncode))
+
+            self.log.info("Running simulation as a subprocess.", indent=1)
+            process = subprocess.Popen(["docker", "run", "-v",
+                                        "{}:/simulation/binary_data".format(self.simulation_dir, "binary_data"), "-v",
+                                        "{}:/simulation/run_config".format(self.simulation_dir, "run_config"), docker],
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT,
+                                       universal_newlines=True,
+                                       cwd=self.simulation_dir,
+                                       bufsize=1)
+            for line in process.stdout:
+                print(line, end='')
+            process.wait()
+            if process.returncode != 0:
+                raise RuntimeError("Docker build failed with exit code {}".format(process.returncode))
             self.log.end_stage()
         except Exception as e:
             self.log.error()
