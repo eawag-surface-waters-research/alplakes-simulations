@@ -1,6 +1,4 @@
 {
   "timestep": 32,
-  "Px": 12,
-  "Py": 3,
-  "endian_type": "big_endian"
+  "endian_type": ">f8"
 }

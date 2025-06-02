@@ -465,6 +465,7 @@ class MitGCM(object):
             files = copy_tree(static, self.simulation_dir)
             for file in files:
                 self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
+            os.makedirs(os.path.join(self.simulation_dir, "run"), exist_ok=True)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -561,38 +562,66 @@ class MitGCM(object):
             modify_arguments('!time_step!', [self.properties["timestep"]], file_path)
             modify_arguments('!dz_grid!', self.grid.dz, file_path)
 
-            Px = self.properties["Px"]
-            Py = self.properties["Py"]
+
+            threads = self.params["threads"]
+            Nx = self.grid.parameters["Nx"]
+            Ny = self.grid.parameters["Ny"]
+            nPxy = str(threads).split("_")
+            if len(nPxy) > 1:
+                self.log.info("Using multiple threads.", indent=1)
+                nPx, nPy = int(nPxy[0]), int(nPxy[1])
+            else:
+                self.log.info("Single threaded, for multiple threads set the thread parameter to nPx_nPy", indent=1)
+                nPx, nPy = 1, 1
+
+            if Nx % nPx != 0 or Ny % nPy != 0:
+                raise ValueError("Grid division must be an integer of number of cells.")
+            sNx = int(Nx / nPx)
+            sNy = int(Ny / nPy)
+
             exch2_path = os.path.join(self.simulation_dir, 'run_config/data.exch2')
-            blank_list_path = os.path.join(self.simulation_dir, f"grid/land_cores_Px{Px}_Py{Py}.txt")
-            if os.path.isfile(exch2_path) and os.path.isfile(blank_list_path):
+            if os.path.isfile(exch2_path):
                 self.log.info("Editing run_config/data.exch2. Using exch2 to avoid computing empty grid regions", indent=1)
-                with open(blank_list_path, "r") as file:
-                    nb_blank_cores, blank_list = file.read().splitlines()
-                Px = (Px * Py) - int(nb_blank_cores)
-                Py = 1
-                modify_arguments('!Nx!', [self.grid.parameters["Nx"]], exch2_path)
-                modify_arguments('!Ny!', [self.grid.parameters["Ny"]], exch2_path)
-                modify_arguments('!blank_list!', [blank_list], exch2_path)
-                self.log.info("Actually using {} cores".format(Px), indent=2)
+
+                with open(os.path.join(self.simulation_dir, "binary_data", "bathy.bin"), 'rb') as fid:
+                    bathy = np.fromfile(fid, dtype='>f8')
+
+                bathy = np.reshape(bathy, (Ny, Nx))
+                core_number = np.zeros(bathy.shape)
+                mean_bathy = np.zeros(bathy.shape)
+                for i in range(nPx):
+                    for j in range(nPy):
+                        core_number[j * int(sNy): (j + 1) * int(sNy), i * int(sNx): (i + 1) * int(sNx)] = int(
+                            1 + i + j * int(nPx))
+                        mean_bathy[j * int(sNy): (j + 1) * int(sNy), i * int(sNx): (i + 1) * int(sNx)] = np.mean(
+                            bathy[j * int(sNy): (j + 1) * int(sNy), i * int(sNx): (i + 1) * int(sNx)])
+                land_cores = sorted(set(core_number[mean_bathy >= 2]))
+
+                nPx = (nPx * nPy) - len(land_cores)
+                nPy = 1
+                modify_arguments('!Nx!', [Nx], exch2_path)
+                modify_arguments('!Ny!', [Ny], exch2_path)
+                if len(land_cores) > 0:
+                    modify_arguments('!blank_list!', [f'blankList(1:{len(land_cores)})=   {",".join(map(str, map(int, land_cores)))},'], exch2_path)
+                else:
+                    modify_arguments('!blank_list!', [""], exch2_path)
+                self.log.info("Ignoring {} chunks with no lake data, actually using {} cores".format(len(land_cores), nPx), indent=2)
             else:
                 self.log.info("exch2 files not available, computing entire grid.", indent=1)
 
             self.log.info("Editing code/SIZE.h", indent=1)
             size_file = os.path.join(self.simulation_dir, "code/SIZE.h")
             Nr = np.count_nonzero(~np.isnan(self.grid.dz))
-            sNx = int(self.grid.parameters["Nx"] / self.properties["Px"])
-            sNy = int(self.grid.parameters["Ny"] / self.properties["Py"])
-            modify_arguments('!Px!', [Px], size_file)
-            modify_arguments('!Py!', [Py], size_file)
-            modify_arguments('!Nx!', [self.grid.parameters["Nx"]], size_file)
-            modify_arguments('!Ny!', [self.grid.parameters["Ny"]], size_file)
+            modify_arguments('!nPx!', [nPx], size_file)
+            modify_arguments('!nPy!', [nPy], size_file)
+            modify_arguments('!Nx!', [Nx], size_file)
+            modify_arguments('!Ny!', [Ny], size_file)
             modify_arguments('!Nr!', [Nr], size_file)
             modify_arguments('!sNx!', [sNx], size_file)
             modify_arguments('!sNy!', [sNy], size_file)
 
             self.log.info("Editing entrypoint.sh", indent=1)
-            modify_arguments('!cores!', [Px], os.path.join(self.simulation_dir, "entrypoint.sh"))
+            modify_arguments('!cores!', [nPx * nPy], os.path.join(self.simulation_dir, "entrypoint.sh"))
 
             self.log.end_stage()
         except Exception as e:
@@ -607,6 +636,10 @@ class MitGCM(object):
             minx, maxx = self.grid.lat_grid.min(), self.grid.lat_grid.max()
             miny, maxy = self.grid.lon_grid.min(), self.grid.lon_grid.max()
             buffer = self.grid.parameters["buffer"]
+            if "endian_type" in self.properties:
+                endian_type = self.properties["endian_type"]
+            else:
+                endian_type = ">f8"
 
             self.log.info("Define buffer region to fill grid", indent=1)
             minx = minx - buffer
@@ -632,7 +665,7 @@ class MitGCM(object):
             def process_variable(var_name, output_name):
                 self.log.info(f'Interpolating {var_name} to grid...', indent=2)
                 data = weather.weather_files_to_grid(weather_folder, var_name, self.params["start"], self.params["end"], self.grid, 1)
-                weather.write_binary(os.path.join(binary_folder, f'{output_name}.bin'), data)
+                weather.write_binary(os.path.join(binary_folder, f'{output_name}.bin'), data, endian_type=endian_type)
                 return data
 
             process_variable('U', 'u10')
@@ -645,12 +678,12 @@ class MitGCM(object):
             self.log.info('Computing specific humidity (aqh)...', indent=2)
             relhum = process_variable('RELHUM_2M', 'relhum')
             aqh = calculate_specific_humidity(atemp, relhum, apress)
-            weather.write_binary(os.path.join(binary_folder, 'aqh.bin'), aqh)
+            weather.write_binary(os.path.join(binary_folder, 'aqh.bin'), aqh, endian_type=endian_type)
 
             self.log.info('Computing longwave radiation (lwdown)...', indent=2)
             clct = process_variable('CLCT', 'clct')
             lwr = compute_longwave_radiation(atemp, relhum, clct)
-            weather.write_binary(os.path.join(binary_folder, 'lwdown.bin'), lwr)
+            weather.write_binary(os.path.join(binary_folder, 'lwdown.bin'), lwr, endian_type=endian_type)
 
             shutil.rmtree(weather_folder)
             self.log.end_stage()
@@ -700,9 +733,11 @@ class MitGCM(object):
                 raise RuntimeError("Docker build failed with exit code {}".format(process.returncode))
 
             self.log.info("Running simulation as a subprocess.", indent=1)
-            process = subprocess.Popen(["docker", "run", "-v",
-                                        "{}:/simulation/binary_data".format(self.simulation_dir, "binary_data"), "-v",
-                                        "{}:/simulation/run_config".format(self.simulation_dir, "run_config"), docker],
+            process = subprocess.Popen(["docker", "run",
+                                        "-v", "{}:/simulation/binary_data".format(os.path.join(self.simulation_dir, "binary_data")),
+                                        "-v", "{}:/simulation/run_config".format(os.path.join(self.simulation_dir, "run_config")),
+                                        "-v", "{}:/simulation/run".format(os.path.join(self.simulation_dir, "run")),
+                                        docker],
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT,
                                        universal_newlines=True,
@@ -712,7 +747,7 @@ class MitGCM(object):
                 print(line, end='')
             process.wait()
             if process.returncode != 0:
-                raise RuntimeError("Docker build failed with exit code {}".format(process.returncode))
+                raise RuntimeError("Docker run failed with exit code {}".format(process.returncode))
             self.log.end_stage()
         except Exception as e:
             self.log.error()

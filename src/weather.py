@@ -161,17 +161,13 @@ def interp_to_grid(json_file: str, variable: str, mitgcm_grid):
     return xr.concat(data_interp, dim="T").sortby("T")
 
 
-def write_binary(filename, data, dtype=">f8"):
-    '''
+def write_binary(filename, data, endian_type=">f8"):
+    """
     Saves data in the right binary format for MITgcm, in the dimension order XYT
     Output binary files have been read and tested
-    '''
-
-    data = data.to_numpy() #convert to xarray to numpy first - and then save to binary
-    # big-endian and precision 64 (small-endian with precision 32 is '<f4')
-    data = data.astype(dtype)
-
-    # Write to file
+    """
+    data = data.to_numpy()
+    data = data.astype(endian_type)
     fid = open(filename, 'wb')
     data.tofile(fid)
     fid.close()

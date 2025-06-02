@@ -94,7 +94,7 @@
  monitorSelect       = 1
  
 # Pickup/restart options. We will also quietly track the iteration number.
-#nIter0              = 0
+ nIter0              = 0
  writePickupAtEnd    = .TRUE.
  pickupSuff          = "!pickup_number!"
 

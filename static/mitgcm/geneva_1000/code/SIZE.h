@@ -4,8 +4,8 @@
       INTEGER, PARAMETER :: OLy = 3
       INTEGER, PARAMETER :: nSx = 1
       INTEGER, PARAMETER :: nSy = 1
-      INTEGER, PARAMETER :: nPx = !Px!
-      INTEGER, PARAMETER :: nPy = !Py!
+      INTEGER, PARAMETER :: nPx = !nPx!
+      INTEGER, PARAMETER :: nPy = !nPy!
       INTEGER, PARAMETER :: Nx  = !Nx!
       INTEGER, PARAMETER :: Ny  = !Ny!
       INTEGER, PARAMETER :: Nr  = !Nr!
