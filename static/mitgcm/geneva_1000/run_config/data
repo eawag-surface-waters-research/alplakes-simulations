@@ -87,18 +87,16 @@
  abEps               = 0.03
 
 # interval to write model state/snapshot data (s)
- dumpFreq            = 3600
+ dumpFreq            = 0
 
 # interval to write monitor output (s).
- monitorFreq         = 3600
+ monitorFreq         = 0
  monitorSelect       = 1
  
 # Pickup/restart options. We will also quietly track the iteration number.
  nIter0              = 0
  writePickupAtEnd    = .TRUE.
  pickupSuff          = "!pickup_number!"
-
-# 172800.0
  pChkptFreq=604800.0,
  chkptFreq=0.0,
  &

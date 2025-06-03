@@ -558,7 +558,7 @@ class MitGCM(object):
             modify_arguments('!start_time!', [start_time_in_second_from_ref_date], file_path)
             modify_arguments('!end_time!', [end_time_in_second_from_ref_date], file_path)
             modify_arguments('!pickup_number!', [""], file_path)
-            modify_arguments('!grid_resolution!', [self.grid.parameters["grid_resolution"]], file_path)
+            modify_arguments('!grid_resolution!', [self.grid.parameters["resolution"]], file_path)
             modify_arguments('!time_step!', [self.properties["timestep"]], file_path)
             modify_arguments('!dz_grid!', self.grid.dz, file_path)
 

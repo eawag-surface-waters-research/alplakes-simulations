@@ -2,6 +2,7 @@ import os
 import netCDF4
 import argparse
 import numpy as np
+import xarray as xr
 from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta, SU
 import functions
@@ -91,11 +92,42 @@ def calculate_variables_delft3d_flow(folder):
             print("Failed to calculate thermocline.")
 
 
+def process_output_mitgcm(folder, skip):
+    output_files = []
+    for root, dirs, files in os.walk(folder):
+        if os.path.basename(root).startswith("thread_"):
+            for file in files:
+                if file.startswith("output."):
+                    output_files.append(os.path.join(root, file))
+    output_files.sort()
+
+    grid = functions.get_mitgcm_grid(os.path.join(folder, "grid"))
+
+    ds = xr.open_mfdataset(output_files[0])
+    week_groups = {}
+    for i, dt in enumerate(ds["T"].values):
+        sunday = dt.astype('M8[ms]').astype(datetime) + relativedelta(weekday=SU(-1))
+        if sunday.date() in week_groups:
+            week_groups[sunday.date()].append(i)
+        else:
+            week_groups[sunday.date()] = [i]
+
+    for week_start in sorted(week_groups):
+        if skip and datetime.strptime(week_start, "%Y-%m-%d") < datetime.strptime(skip, "%Y%m%d"):
+            continue
+        indices = week_groups[week_start]
+        print(f"Week starting {week_start}: Start index = {indices[0]}, Stop index = {indices[-1]}")
+
+
+
+
 def main(folder, docker, skip=False):
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
         verify_simulation_delft3d_flow(folder)
         split_by_week_delft3d_flow(folder, skip)
         calculate_variables_delft3d_flow(folder)
+    elif "mitgcm" in docker:
+        process_output_mitgcm(folder, skip)
     else:
         raise ValueError("Postprocessing not defined for docker image {}".format(docker))
 

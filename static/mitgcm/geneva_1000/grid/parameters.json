@@ -1,6 +1,7 @@
 {
-  "grid_resolution": 1000,
+  "resolution": 1000,
   "buffer": 0.02,
   "Nx": 70,
-  "Ny": 26
+  "Ny": 26,
+  "rotation": 19.4115
 }

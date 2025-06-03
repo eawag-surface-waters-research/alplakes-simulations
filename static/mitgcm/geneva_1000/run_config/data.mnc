@@ -4,11 +4,12 @@
 # to read the `grid.*.nc` files.
 
  &MNC_01
- pickup_write_mnc = .TRUE.
+ mnc_use_outdir = .TRUE.
+ mnc_outdir_str = 'thread_'
  monitor_mnc      = .TRUE.
- pickup_read_mnc  = .TRUE.
+ pickup_write_mnc = .FALSE.
+ pickup_read_mnc  = .FALSE.
  readgrid_mnc     = .TRUE.
- mnc_use_outdir	  = .FALSE.
  writegrid_mnc    = .FALSE.
  &
 
