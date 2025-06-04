@@ -1,4 +1,4 @@
 {
-  "timestep": 32,
+  "timestep": 30,
   "endian_type": ">f8"
 }

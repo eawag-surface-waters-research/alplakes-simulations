@@ -408,8 +408,8 @@ class MitGCM(object):
         self.params = params
         self.properties = {}
         self.simulation_dir = ""
-        self.restart_file = ""
-        self.profile = "None"
+        self.restart_id = False
+        self.profile = False
         self.grid = ""
         self.initial_temperature = np.array([0])
 
@@ -429,7 +429,7 @@ class MitGCM(object):
         self.copy_static_data()
         self.load_properties()
         self.load_grid()
-        # self.collect_restart_file()
+        self.collect_restart_file()
         self.initial_conditions()
         self.update_control_files()
         self.weather_data_files()
@@ -474,8 +474,8 @@ class MitGCM(object):
     def collect_restart_file(self, region="eu-central-1"):
         try:
             self.log.begin_stage("Collecting restart file.")
-            self.restart_file = "tri-rst.Simulation_Web_rst.{}.000000".format(self.params["start"].strftime("%Y%m%d"))
             components = self.params["model"].split("/")
+            restart_file = "pickup.{}.data".format(self.params["start"].strftime("%Y%m%d"))
             if self.params["profile"]:
                 self.log.info("Using profile ({}), no restart file required.".format(self.params["profile"]), indent=1)
                 if ".txt" not in self.params["profile"]:
@@ -489,7 +489,8 @@ class MitGCM(object):
                 self.log.info("Copying restart file from local storage.", indent=1)
                 file = self.params["restart"]
                 if os.path.isfile(file):
-                    shutil.copyfile(file, os.path.join(self.simulation_dir, self.restart_file))
+                    shutil.copyfile(file, os.path.join(self.simulation_dir, "run", restart_file))
+                    shutil.copyfile(file, os.path.join(self.simulation_dir, "run", restart_file.replace(".data", ".meta")))
                     self.log.end_stage()
                     return
                 else:
@@ -498,18 +499,16 @@ class MitGCM(object):
             if not self.params["bucket"]:
                 raise ValueError("No bucket address provided, either include local files or specify a bucket.")
             bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
-            file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
+            file = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], restart_file)
             self.log.info("File location: {}".format(file), indent=2)
-            status_code = download_file(file, os.path.join(self.simulation_dir, self.restart_file))
-            if status_code == 200:
-                self.log.info("Successfully downloaded restart file.", indent=2)
-            elif status_code == 403:
+            status_code1 = download_file(file, os.path.join(self.simulation_dir, "run", restart_file))
+            status_code2 = download_file(file.replace(".data", ".meta"), os.path.join(self.simulation_dir, "run", restart_file.replace(".data", ".meta")))
+            if status_code1 == 200 and status_code2 == 200:
+                self.restart_id = self.params["start"].strftime("%Y%m%d")
+                self.log.info("Successfully downloaded restart files.", indent=2)
+            elif status_code1 == 403 or status_code2 == 403:
                 self.log.warning("Restart file doesn't exist on server.", indent=1)
-                if os.path.exists(os.path.join(self.simulation_dir, "profiles", "default.txt")):
-                    self.log.warning("Using default restart profile", indent=1)
-                    self.profile = "default.txt"
-                else:
-                    raise ValueError("Not restart file and no default restart profile.")
+                self.log.warning("Using default 4 degree starting temperature", indent=1)
             else:
                 raise ValueError("Unable to download restart file, please check your internet connection.")
             self.log.end_stage()
@@ -536,8 +535,16 @@ class MitGCM(object):
         self.log.end_stage()
 
     def initial_conditions(self):
-        self.log.begin_stage("Setting intial conditions.")
-        self.initial_temperature = np.full(self.grid.dz.shape, 4.0)
+        self.log.begin_stage("Setting initial conditions.")
+        if self.profile:
+            self.log.info("Using profile {} for initial conditions".format(self.profile), indent=1)
+            with open(os.path.join(self.simulation_dir, "profiles", self.profile), 'r') as file:
+                profile = np.array(json.load(file))
+                if profile.shape != self.grid.dz.shape:
+                    raise ValueError("Profile {} has incorrect shape.".format(self.profile))
+        else:
+            profile = np.full(self.grid.dz.shape, 4.0)
+        self.initial_temperature = profile
         self.log.end_stage()
 
     def update_control_files(self, origin=datetime(2008, 3, 1), period=180):
@@ -557,11 +564,13 @@ class MitGCM(object):
             modify_arguments('!initial_temperature!', self.initial_temperature, file_path)
             modify_arguments('!start_time!', [start_time_in_second_from_ref_date], file_path)
             modify_arguments('!end_time!', [end_time_in_second_from_ref_date], file_path)
-            modify_arguments('!pickup_number!', [""], file_path)
+            if self.restart_id:
+                modify_arguments('!pickup_number!', [self.restart_id], file_path)
+            else:
+                modify_arguments('!pickup_number!', [""], file_path)
             modify_arguments('!grid_resolution!', [self.grid.parameters["resolution"]], file_path)
             modify_arguments('!time_step!', [self.properties["timestep"]], file_path)
             modify_arguments('!dz_grid!', self.grid.dz, file_path)
-
 
             threads = self.params["threads"]
             Nx = self.grid.parameters["Nx"]

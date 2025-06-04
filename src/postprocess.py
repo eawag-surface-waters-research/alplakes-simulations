@@ -94,6 +94,10 @@ def calculate_variables_delft3d_flow(folder):
 
 
 def process_output_mitgcm(folder, skip):
+
+
+
+
     output_files = []
     for root, dirs, files in os.walk(folder):
         if os.path.basename(root).startswith("thread_"):
