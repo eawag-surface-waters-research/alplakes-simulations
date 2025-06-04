@@ -1,4 +1,5 @@
 import os
+import shutil
 import netCDF4
 import pylake
 import argparse
@@ -93,11 +94,7 @@ def calculate_variables_delft3d_flow(folder):
             print("Failed to calculate thermocline.")
 
 
-def process_output_mitgcm(folder, skip):
-
-
-
-
+def process_output_mitgcm(folder, skip, origin=datetime(2008, 3, 1)):
     output_files = []
     for root, dirs, files in os.walk(folder):
         if os.path.basename(root).startswith("thread_"):
@@ -217,6 +214,27 @@ def process_output_mitgcm(folder, skip):
                     therm[therm > np.nanmax(depth)] = np.nan
                     therm[np.isnan(therm)] = -999.0
                     variables["thermocline"]["nc"][:, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = therm
+
+    pickups = list(set([f.split(".")[1] for f in os.listdir(os.path.join(folder, "run")) if "pickup.00" in f]))
+    for pickup in pickups:
+        with open(os.path.join(folder, "run", "pickup.{}.meta".format(pickup)), "r") as file:
+            lines = file.readlines()
+        name = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("timeStepNumber"):
+                lines[i] = " timeStepNumber = [          0 ];\n"
+            if line.strip().startswith("timeInterval"):
+                dt = origin + timedelta(seconds=float(line.split("=")[1].split("[")[1].split("]")[0].strip()))
+                if dt.weekday() != 6 or dt.hour != 0 or dt.minute != 0:
+                    raise ValueError("Pickup file produced for incorrect date")
+                name = dt.strftime("%Y%m%d")
+                lines[i] = " timeInterval = [  0.0 ];\n"
+        if name:
+            shutil.copy(os.path.join(folder, "run", "pickup.{}.data".format(pickup)),
+                        os.path.join(folder, "run", "pickup.{}.data".format(name)))
+            with open(os.path.join(folder, "run", "pickup.{}.meta".format(name)), "w") as file:
+                file.writelines(lines)
+
 
 def main(folder, docker, skip=False):
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
