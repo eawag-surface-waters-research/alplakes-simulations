@@ -1,5 +1,6 @@
 import os
 import netCDF4
+import pylake
 import argparse
 import numpy as np
 import xarray as xr
@@ -102,24 +103,116 @@ def process_output_mitgcm(folder, skip):
     output_files.sort()
 
     grid = functions.get_mitgcm_grid(os.path.join(folder, "grid"))
+    z_faces = -np.concatenate(([0], np.cumsum(grid.dz.flatten())))
+    depth = -(z_faces[:-1] + z_faces[1:]) / 2
 
     ds = xr.open_mfdataset(output_files[0])
+    full_time = ds["T"].values
+
+    general_attributes = {
+        "MITgcm_version": ds.attrs.get('MITgcm_version')
+    }
+
+    dimensions = {
+        'time': {'dim_name': 'time', 'dim_size': None},
+        'depth': {'dim_name': 'depth', 'dim_size': len(depth)},
+        'X': {'dim_name': 'X', 'dim_size': grid.lat_grid.shape[1]},
+        'Y': {'dim_name': 'Y', 'dim_size': grid.lat_grid.shape[0]}
+    }
+    variables = {
+        'time': {'var_name': 'time', 'dim': ('time',), 'unit': 'seconds since 1970-01-01 00:00:00',
+                 'long_name': 'time'},
+        'depth': {'var_name': 'depth', 'dim': ('depth',), 'unit': 'm', 'long_name': 'Depth below surface'},
+        'lat': {'var_name': 'lat', 'dim': ('Y', 'X',), 'unit': '', 'long_name': 'Latitude'},
+        'lng': {'var_name': 'lng', 'dim': ('Y', 'X',), 'unit': '', 'long_name': 'Longitude'},
+        't': {'var_name': 't', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': '°C', 'long_name': 'Temperature'},
+        'u': {'var_name': 'u', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': 'm/s', 'long_name': 'Eastward velocity'},
+        'v': {'var_name': 'v', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': 'm/s', 'long_name': 'Northward velocity'},
+        'w': {'var_name': 'w', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': 'm/s', 'long_name': 'Vertical velocity'},
+        'thermocline': {'var_name': 'thermocline', 'dim': ('time', 'Y', 'X',), 'unit': 'm', 'long_name': 'Thermocline calculated using PyLake'},
+
+    }
+
     week_groups = {}
-    for i, dt in enumerate(ds["T"].values):
+    for i, dt in enumerate(full_time):
         sunday = dt.astype('M8[ms]').astype(datetime) + relativedelta(weekday=SU(-1))
-        if sunday.date() in week_groups:
-            week_groups[sunday.date()].append(i)
+        if sunday.strftime("%Y%m%d") in week_groups:
+            week_groups[sunday.strftime("%Y%m%d")].append(i)
         else:
-            week_groups[sunday.date()] = [i]
+            week_groups[sunday.strftime("%Y%m%d")] = [i]
+
+    output_folder = os.path.join(folder, "postprocess")
+    os.makedirs(output_folder, exist_ok=True)
 
     for week_start in sorted(week_groups):
-        if skip and datetime.strptime(week_start, "%Y-%m-%d") < datetime.strptime(skip, "%Y%m%d"):
+        if skip and datetime.strptime(week_start, "%Y%m%d") < datetime.strptime(skip, "%Y%m%d"):
             continue
         indices = week_groups[week_start]
-        print(f"Week starting {week_start}: Start index = {indices[0]}, Stop index = {indices[-1]}")
+        print(f"Exporting data for week starting {week_start}")
+        time = [(full_time[i] - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's') for i in range(indices[0], indices[-1] + 1)]
+        with netCDF4.Dataset(os.path.join(output_folder, week_start + ".nc"), "w") as dst:
+            for key in general_attributes:
+                setattr(dst, key, general_attributes[key])
+            for key, values in dimensions.items():
+                dst.createDimension(values['dim_name'], values['dim_size'])
+            for key, values in variables.items():
+                variables[key]["nc"] = dst.createVariable(values["var_name"], np.float64, values["dim"], fill_value=-999.0)
+                variables[key]["nc"].units = values["unit"]
+                variables[key]["nc"].long_name = values["long_name"]
 
+            variables["time"]["nc"][:] = time
+            variables["depth"]["nc"][:] = depth
+            variables["lat"]["nc"][:] = grid.lat_grid
+            variables["lng"]["nc"][:] = grid.lon_grid
 
+            for f in output_files:
+                with netCDF4.Dataset(f, "r") as nc:
+                    print("  Reading file: {}".format(os.path.basename(f)))
+                    x = nc.variables["X"][:]
+                    y = nc.variables["Y"][:]
+                    uvel = nc.variables["UVEL"][indices[0]:indices[-1] + 1, :]
+                    uvel = (uvel[..., :-1] + uvel[..., 1:]) / 2 # Get cell center
+                    vvel = nc.variables["VVEL"][indices[0]:indices[-1] + 1, :]
+                    vvel = (vvel[..., :-1, :] + vvel[..., 1:, :]) / 2 # Get cell center
+                    if "rotation" in grid.parameters:
+                        print("    Rotating u,v by {}°".format(-grid.parameters["rotation"]))
+                        theta_rad = np.deg2rad(-grid.parameters["rotation"])
+                        u = uvel * np.cos(theta_rad) - vvel * np.sin(theta_rad)
+                        v = uvel * np.sin(theta_rad) + vvel * np.cos(theta_rad)
+                    else:
+                        u = uvel
+                        v = vvel
 
+                    data = {
+                        "t": nc.variables["THETA"][indices[0]:indices[-1] + 1, :],
+                        "w": nc.variables["WVEL"][indices[0]:indices[-1] + 1, :],
+                        "u": u,
+                        "v": v
+                    }
+                    for key, values in data.items():
+                        variables[key]["nc"][:, :, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = values
+
+                    print("    Computing thermocline.")
+                    t = nc.variables["THETA"][indices[0]:indices[-1] + 1, :]
+                    dt = np.reshape(t, [t.shape[0], t.shape[1], t.shape[2] * t.shape[3]])
+                    dt[dt == -999] = np.nan
+                    array = xr.DataArray(
+                        data=dt,
+                        dims=["time", "depth", "data"],
+                        coords=dict(
+                            time=("time", time),
+                            depth=("depth", depth),
+                            data=("data", np.arange(dt.shape[2]))
+                        )
+                    )
+                    therm, index = pylake.thermocline(array)
+                    therm = np.array(therm)
+                    therm = np.reshape(therm, [therm.shape[0], t.shape[2], t.shape[3]])
+                    therm[therm == np.nanmax(therm)] = np.nan
+                    therm[therm < 0] = np.nan
+                    therm[therm > np.nanmax(depth)] = np.nan
+                    therm[np.isnan(therm)] = -999.0
+                    variables["thermocline"]["nc"][:, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = therm
 
 def main(folder, docker, skip=False):
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
