@@ -473,7 +473,7 @@ class MitGCM(object):
 
     def collect_restart_file(self, region="eu-central-1"):
         try:
-            self.log.begin_stage("Collecting restart file.")
+            self.log.begin_stage("Collecting restart files.")
             components = self.params["model"].split("/")
             restart_file = "pickup.{}.data".format(self.params["start"].strftime("%Y%m%d"))
             if self.params["profile"]:
@@ -486,15 +486,17 @@ class MitGCM(object):
                 self.log.end_stage()
                 return
             if self.params["restart"]:
-                self.log.info("Copying restart file from local storage.", indent=1)
-                file = self.params["restart"]
-                if os.path.isfile(file):
-                    shutil.copyfile(file, os.path.join(self.simulation_dir, "run", restart_file))
-                    shutil.copyfile(file, os.path.join(self.simulation_dir, "run", restart_file.replace(".data", ".meta")))
-                    self.log.end_stage()
-                    return
-                else:
-                    raise ValueError("Unable to locate restart file: ".format(file))
+                self.log.info("Copying restart files from local storage.", indent=1)
+                data_file = self.params["restart"] + ".data"
+                meta_file = self.params["restart"] + ".meta"
+                if not os.path.isfile(data_file):
+                    raise ValueError("Unable to locate restart data file: ".format(data_file))
+                if not os.path.isfile(meta_file):
+                    raise ValueError("Unable to locate restart meta file: ".format(meta_file))
+                shutil.copyfile(data_file, os.path.join(self.simulation_dir, "run", restart_file))
+                shutil.copyfile(meta_file, os.path.join(self.simulation_dir, "run", restart_file.replace(".data", ".meta")))
+                self.log.end_stage()
+                return
             self.log.info("Downloading restart file from remote storage.", indent=1)
             if not self.params["bucket"]:
                 raise ValueError("No bucket address provided, either include local files or specify a bucket.")
@@ -507,7 +509,7 @@ class MitGCM(object):
                 self.restart_id = self.params["start"].strftime("%Y%m%d")
                 self.log.info("Successfully downloaded restart files.", indent=2)
             elif status_code1 == 403 or status_code2 == 403:
-                self.log.warning("Restart file doesn't exist on server.", indent=1)
+                self.log.warning("Restart files doesn't exist on server.", indent=1)
                 self.log.warning("Using default 4 degree starting temperature", indent=1)
             else:
                 raise ValueError("Unable to download restart file, please check your internet connection.")
@@ -547,7 +549,8 @@ class MitGCM(object):
         self.initial_temperature = profile
         self.log.end_stage()
 
-    def update_control_files(self, origin=datetime(2008, 3, 1), period=180):
+    def update_control_files(self, origin=datetime(2008, 6, 1)):
+        # Origin must be a Sunday as restart files are based on origin not on start time
         try:
             self.log.begin_stage("Updating control files.")
             start_time_in_second_from_ref_date = (self.params["start"] - origin).total_seconds()

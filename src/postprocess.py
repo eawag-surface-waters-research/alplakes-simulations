@@ -94,7 +94,7 @@ def calculate_variables_delft3d_flow(folder):
             print("Failed to calculate thermocline.")
 
 
-def process_output_mitgcm(folder, skip, origin=datetime(2008, 3, 1)):
+def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
     output_files = []
     for root, dirs, files in os.walk(folder):
         if os.path.basename(root).startswith("thread_"):
