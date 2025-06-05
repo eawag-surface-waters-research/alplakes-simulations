@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import glob as glob
+import json
 import pytz
-import orjson
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -130,8 +130,8 @@ def weather_files_to_grid(folder, variable, start_date, end_date, mitgcm_grid, p
 
 
 def interp_to_grid(json_file: str, variable: str, mitgcm_grid):
-    with open(json_file, "rb") as file:
-        json_data = orjson.loads(file.read())
+    with open(json_file, "r", encoding="utf-8") as file:
+        json_data = json.load(file)
 
     parsed_times = pd.to_datetime(
         np.array(json_data).item().get('time')
