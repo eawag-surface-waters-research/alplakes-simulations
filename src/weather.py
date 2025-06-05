@@ -145,7 +145,7 @@ def interp_to_grid(json_file: str, variable: str, mitgcm_grid):
     elif "variables" in json_data and variable in json_data["variables"]:
         data = np.array(json_data["variables"][variable]["data"])
     else:
-        raise ValueError("Parameter {} not in donwloaded data.".format(variable))
+        raise ValueError("Parameter {} not in downloaded data.".format(variable))
 
     data_interp = [
         xr.DataArray(
