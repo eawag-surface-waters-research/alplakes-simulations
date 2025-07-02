@@ -461,11 +461,16 @@ class MitGCM(object):
         try:
             self.log.begin_stage("Copying static data to simulation folder.")
             parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-            static = os.path.join(parent_dir, "static", self.params["model"])
-            files = copy_tree(static, self.simulation_dir)
+            self.log.info("Copying default files to simulation folder.", indent=1)
+            default = os.path.join(parent_dir, "static", self.params["model"].split("/")[0], "default")
+            files = copy_tree(default, self.simulation_dir)
             for file in files:
-                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
-            os.makedirs(os.path.join(self.simulation_dir, "run"), exist_ok=True)
+                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            self.log.info("Copying model files to simulation folder.", indent=1)
+            model = os.path.join(parent_dir, "static", self.params["model"])
+            files = copy_tree(model, self.simulation_dir)
+            for file in files:
+                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -631,6 +636,19 @@ class MitGCM(object):
             modify_arguments('!Nr!', [Nr], size_file)
             modify_arguments('!sNx!', [sNx], size_file)
             modify_arguments('!sNy!', [sNy], size_file)
+
+            self.log.info("Editing code/swfrac.F", indent=1)
+            if "secchi" not in self.properties or not isinstance(self.properties["secchi"], list):
+                raise ValueError("A list of secchi values must be provided in properties.json")
+            swfrac_file = os.path.join(self.simulation_dir, "code/swfrac.F")
+            depths = "_RL secchiDepths({})".format(len(self.properties["secchi"]))
+            secchi = "DATA secchiDepths / {} _d 0".format(self.properties["secchi"][0])
+            for i in range(1, len(self.properties["secchi"])):
+                secchi = secchi + ",\n     &                    {} _d 0".format(self.properties["secchi"][i])
+            secchi = secchi + " /"
+
+            modify_arguments('!depths!', [depths], swfrac_file)
+            modify_arguments('!secchi!', [secchi], swfrac_file)
 
             self.log.info("Editing entrypoint.sh", indent=1)
             modify_arguments('!cores!', [nPx * nPy], os.path.join(self.simulation_dir, "entrypoint.sh"))

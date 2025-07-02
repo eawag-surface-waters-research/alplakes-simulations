@@ -63,19 +63,8 @@ C     max number of different water types
       _RL     fac
       LOGICAL first, changed
       INTEGER count0, count1
-      _RL secchiDepths(12)
-      DATA secchiDepths / 6.8 _d 0,
-     &                    6.5 _d 0,
-     &                    6.3  _d 0,
-     &                    6.0  _d 0,
-     &                    5.0 _d 0,
-     &                    4.5  _d 0,
-     &                    4.0 _d 0,
-     &                    4.0  _d 0,
-     &                    4.0  _d 0,
-     &                    4.0 _d 0,
-     &                    6.0  _d 0,
-     &                    6.0 _d 0 /
+      !depths!
+      !secchi!
 
 #ifdef ALLOW_CAL
       CALL  cal_GetMonthsRec(
