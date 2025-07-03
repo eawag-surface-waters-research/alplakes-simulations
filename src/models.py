@@ -4,6 +4,8 @@ import json
 import shutil
 import subprocess
 import numpy as np
+import pandas as pd
+import xarray as xr
 from distutils.dir_util import copy_tree
 from datetime import datetime, timedelta
 
@@ -412,6 +414,8 @@ class MitGCM(object):
         self.profile = False
         self.grid = ""
         self.initial_temperature = np.array([0])
+        self.initial_salinity = np.array([0])
+        self.default_salinity = 0.050
 
         if "log" in params and params["log"]:
             log_prefix = "{}_{}_{}".format(params["model"].replace("/", "_"), params["start"], params["end"])
@@ -471,6 +475,7 @@ class MitGCM(object):
             files = copy_tree(model, self.simulation_dir)
             for file in files:
                 self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            os.makedirs(os.path.join(self.simulation_dir, "run"), exist_ok=True)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -483,8 +488,8 @@ class MitGCM(object):
             restart_file = "pickup.{}.data".format(self.params["start"].strftime("%Y%m%d"))
             if self.params["profile"]:
                 self.log.info("Using profile ({}), no restart file required.".format(self.params["profile"]), indent=1)
-                if ".txt" not in self.params["profile"]:
-                    self.params["profile"] = self.params["profile"] + ".txt"
+                if ".csv" not in self.params["profile"]:
+                    self.params["profile"] = self.params["profile"] + ".csv"
                 if not os.path.exists(os.path.join(self.simulation_dir, "profiles", self.params["profile"])):
                     raise ValueError('Specified profile "{}" cannot be found, select from {}'.format(self.params["profile"], os.listdir(os.path.join(self.simulation_dir, "profiles"))))
                 self.profile = self.params["profile"]
@@ -545,13 +550,21 @@ class MitGCM(object):
         self.log.begin_stage("Setting initial conditions.")
         if self.profile:
             self.log.info("Using profile {} for initial conditions".format(self.profile), indent=1)
-            with open(os.path.join(self.simulation_dir, "profiles", self.profile), 'r') as file:
-                profile = np.array(json.load(file))
-                if profile.shape != self.grid.dz.shape:
-                    raise ValueError("Profile {} has incorrect shape.".format(self.profile))
+            df = pd.read_csv(os.path.join(self.simulation_dir, "profiles", self.profile))
+            df = df.set_index('depth').to_xarray()
+            z_grid = np.cumsum(self.grid.dz.flatten())
+            df_i = df.interp(depth=z_grid, method='linear')
+            df_f = df_i.ffill(dim='depth').bfill(dim='depth')
+            profile = df_f['temperature'].values.reshape(self.grid.dz.shape)
         else:
             profile = np.full(self.grid.dz.shape, 4.0)
         self.initial_temperature = profile
+
+        if "salinity" in self.properties:
+            self.initial_salinity = np.full(self.grid.dz.shape, self.properties["salinity"])
+        else:
+            self.initial_salinity = np.full(self.grid.dz.shape, self.default_salinity)
+
         self.log.end_stage()
 
     def update_control_files(self, origin=datetime(2008, 6, 1)):
@@ -570,6 +583,7 @@ class MitGCM(object):
             self.log.info("Editing run_config/data", indent=1)
             file_path = os.path.join(self.simulation_dir, 'run_config/data')
             modify_arguments('!initial_temperature!', self.initial_temperature, file_path)
+            modify_arguments('!initial_salinity!', self.initial_salinity, file_path)
             modify_arguments('!start_time!', [start_time_in_second_from_ref_date], file_path)
             modify_arguments('!end_time!', [end_time_in_second_from_ref_date], file_path)
             if self.restart_id:
