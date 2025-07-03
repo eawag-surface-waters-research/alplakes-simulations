@@ -1,0 +1,15 @@
+# Options for the netCDF output, taken from
+# https://mitgcm.readthedocs.io/en/latest/outp_pkgs/outp_pkgs.html
+# The option `readgrid_mnc=False` does not seem to work, as the code still tries
+# to read the `grid.*.nc` files.
+
+ &MNC_01
+ mnc_use_outdir = .TRUE.
+ mnc_outdir_str = 'thread_'
+ monitor_mnc      = .TRUE.
+ pickup_write_mnc = .FALSE.
+ pickup_read_mnc  = .FALSE.
+ readgrid_mnc     = .TRUE.
+ writegrid_mnc    = .FALSE.
+ &
+

@@ -1,0 +1,79 @@
+# Input files for the external forcing package (EXF)
+# Note: albedo value is taken from MeteoSwiss data, which is uniform across
+# all Swiss lakes.
+
+&EXF_NML_01
+ exf_iprec           = 64
+ useAtmWind          = .TRUE.
+ exf_albedo          = 0.066
+ cdalton             = 0.053
+ useExfCheckRange    = .FALSE.
+ readStressOnCgrid   = .TRUE.
+ &
+
+ &EXF_NML_02
+ uwindfile         = "../binary_data/u10.bin"
+ vwindfile         = "../binary_data/v10.bin"
+ atempfile           = "../binary_data/atemp.bin"
+ swdownfile          = "../binary_data/swdown.bin"
+ lwdownfile          = "../binary_data/lwdown.bin"
+ aqhfile             = "../binary_data/aqh.bin"
+ apressurefile       = "../binary_data/apressure.bin"
+ 
+# uwindfile         = "../binary_data/u10.bin"
+# vwindfile         = "../binary_data/v10.bin"
+# atempfile           = "../binary_data/atemp.bin"
+# swdownfile          = "../binary_data/swdown.bin"
+# lwdownfile          = "../binary_data/lwdown.bin"
+# aqhfile             = "../binary_data/aqh.bin"
+# apressurefile       = "../binary_data/apressure.bin"
+
+# ustressstartdate1   = !start_date!
+# vstressstartdate1   = !start_date!
+ uwindstartdate1   = !start_date!
+ vwindstartdate1   = !start_date!
+ atempstartdate1     = !start_date!
+ swdownstartdate1    = !start_date!
+ lwdownstartdate1    = !start_date!
+ aqhstartdate1       = !start_date!
+ apressurestartdate1 = !start_date!
+
+# ustressstartdate2   = 000000
+# vstressstartdate2   = 000000
+ uwindstartdate2   = 000000
+ vwindstartdate2   = 000000
+ atempstartdate2     = 000000
+ swdownstartdate2    = 000000
+ lwdownstartdate2    = 000000
+ aqhstartdate2       = 000000
+ apressurestartdate2 = 000000
+
+# ustressperiod       = 3600.000001
+# vstressperiod       = 3600.000001
+ uwindperiod       = 3600.000001
+ vwindperiod       = 3600.000001
+ atempperiod         = 3600.000001
+ swdownperiod        = 3600.000001
+ lwdownperiod        = 3600.000001
+ aqhperiod           = 3600.000001
+ apressureperiod     = 3600.000001
+ &
+
+ &EXF_NML_03
+ &
+
+ &EXF_NML_04
+ &
+
+ &EXF_NML_OBCS
+ obcsWstartdate1    = !start_date!
+ obcsSstartdate1    = !start_date!
+ obcsEstartdate1    = !start_date!
+ obcsWstartdate2    = 000000
+ obcsSstartdate2    = 000000
+ obcsEstartdate2    = 000000
+ obcsWperiod        = 3600.000001
+ obcsSperiod        = 3600.000001
+ obcsEperiod        = 3600.000001
+ &
+

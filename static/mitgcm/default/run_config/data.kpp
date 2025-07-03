@@ -1,0 +1,8 @@
+# Parameters for the KPP turbulence model (vertical mixing processes)
+
+ &KPP_PARM01
+ KPPmixingMaps          = .FALSE.
+ KPPwriteState          = .FALSE.
+ KPP_ghatUseTotalDiffus = .FALSE.
+ &
+

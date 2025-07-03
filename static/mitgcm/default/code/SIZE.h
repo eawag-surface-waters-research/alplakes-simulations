@@ -1,0 +1,13 @@
+      INTEGER, PARAMETER :: sNx = !sNx!
+      INTEGER, PARAMETER :: sNy = !sNy!
+      INTEGER, PARAMETER :: OLx = 3
+      INTEGER, PARAMETER :: OLy = 3
+      INTEGER, PARAMETER :: nSx = 1
+      INTEGER, PARAMETER :: nSy = 1
+      INTEGER, PARAMETER :: nPx = !nPx!
+      INTEGER, PARAMETER :: nPy = !nPy!
+      INTEGER, PARAMETER :: Nx  = !Nx!
+      INTEGER, PARAMETER :: Ny  = !Ny!
+      INTEGER, PARAMETER :: Nr  = !Nr!
+      INTEGER, PARAMETER :: MAX_OLX = OLx
+      INTEGER, PARAMETER :: MAX_OLY = OLy
