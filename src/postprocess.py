@@ -96,12 +96,10 @@ def calculate_variables_delft3d_flow(folder):
 
 def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
     output_files = []
-    for root, dirs, files in os.walk(folder):
-        if os.path.basename(root).startswith("thread_"):
-            for file in files:
-                if file.startswith("output."):
-                    output_files.append(os.path.join(root, file))
-    output_files.sort()
+    for thread in [f for f in os.listdir(os.path.join(folder, "run")) if os.path.basename(f).startswith("thread_")]:
+        files = [os.path.join(folder, "run", thread, f) for f in os.listdir(os.path.join(folder, "run", thread)) if f.startswith("output.")]
+        files.sort()
+        output_files.append(files)
 
     grid = functions.get_mitgcm_grid(os.path.join(folder, "grid"))
     z_faces = -np.concatenate(([0], np.cumsum(grid.dz.flatten())))
@@ -131,7 +129,6 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
         'v': {'var_name': 'v', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': 'm/s', 'long_name': 'Northward velocity'},
         'w': {'var_name': 'w', 'dim': ('time', 'depth', 'Y', 'X',), 'unit': 'm/s', 'long_name': 'Vertical velocity'},
         'thermocline': {'var_name': 'thermocline', 'dim': ('time', 'Y', 'X',), 'unit': 'm', 'long_name': 'Thermocline calculated using PyLake'},
-
     }
 
     week_groups = {}
@@ -167,53 +164,60 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
             variables["lng"]["nc"][:] = grid.lon_grid
 
             for f in output_files:
-                with netCDF4.Dataset(f, "r") as nc:
-                    print("  Reading file: {}".format(os.path.basename(f)))
-                    x = nc.variables["X"][:]
-                    y = nc.variables["Y"][:]
-                    uvel = nc.variables["UVEL"][indices[0]:indices[-1] + 1, :]
-                    uvel = (uvel[..., :-1] + uvel[..., 1:]) / 2 # Get cell center
-                    vvel = nc.variables["VVEL"][indices[0]:indices[-1] + 1, :]
-                    vvel = (vvel[..., :-1, :] + vvel[..., 1:, :]) / 2 # Get cell center
-                    if "rotation" in grid.parameters:
-                        print("    Rotating u,v by {}°".format(-grid.parameters["rotation"]))
-                        theta_rad = np.deg2rad(-grid.parameters["rotation"])
-                        u = uvel * np.cos(theta_rad) - vvel * np.sin(theta_rad)
-                        v = uvel * np.sin(theta_rad) + vvel * np.cos(theta_rad)
-                    else:
-                        u = uvel
-                        v = vvel
+                print("  Reading {}".format(os.path.basename(os.path.dirname(f[0]))))
+                if len(f) > 0:
+                    with xr.open_mfdataset(f) as ds:
+                        x = np.array(ds["X"].values)
+                        y = ds["Y"].values
+                        t = ds["THETA"].isel(T=slice(indices[0], indices[-1] + 1)).values
+                        w = ds["WVEL"].isel(T=slice(indices[0], indices[-1] + 1)).values
+                        uvel = ds["UVEL"].isel(T=slice(indices[0], indices[-1] + 1)).values
+                        vvel = ds["VVEL"].isel(T=slice(indices[0], indices[-1] + 1)).values
+                else:
+                    with netCDF4.Dataset(f[0], "r") as nc:
+                        x = np.array(nc.variables["X"][:])
+                        y = nc.variables["Y"][:]
+                        t = nc.variables["THETA"][indices[0]:indices[-1] + 1, :]
+                        w = nc.variables["WVEL"][indices[0]:indices[-1] + 1, :]
+                        uvel = nc.variables["UVEL"][indices[0]:indices[-1] + 1, :]
+                        vvel = nc.variables["VVEL"][indices[0]:indices[-1] + 1, :]
 
-                    data = {
-                        "t": nc.variables["THETA"][indices[0]:indices[-1] + 1, :],
-                        "w": nc.variables["WVEL"][indices[0]:indices[-1] + 1, :],
-                        "u": u,
-                        "v": v
-                    }
-                    for key, values in data.items():
-                        variables[key]["nc"][:, :, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = values
+                uvel = (uvel[..., :-1] + uvel[..., 1:]) / 2  # Get cell center
+                vvel = (vvel[..., :-1, :] + vvel[..., 1:, :]) / 2 # Get cell center
+                if "rotation" in grid.parameters:
+                    print("    Rotating u,v by {}°".format(-grid.parameters["rotation"]))
+                    theta_rad = np.deg2rad(-grid.parameters["rotation"])
+                    u = uvel * np.cos(theta_rad) - vvel * np.sin(theta_rad)
+                    v = uvel * np.sin(theta_rad) + vvel * np.cos(theta_rad)
+                else:
+                    u = uvel
+                    v = vvel
 
-                    print("    Computing thermocline.")
-                    t = nc.variables["THETA"][indices[0]:indices[-1] + 1, :]
-                    dt = np.reshape(t, [t.shape[0], t.shape[1], t.shape[2] * t.shape[3]])
-                    dt[dt == -999] = np.nan
-                    array = xr.DataArray(
-                        data=dt,
-                        dims=["time", "depth", "data"],
-                        coords=dict(
-                            time=("time", time),
-                            depth=("depth", depth),
-                            data=("data", np.arange(dt.shape[2]))
-                        )
+                data = {"t": t, "w": w, "u": u, "v": v}
+
+                for key, values in data.items():
+                    variables[key]["nc"][:, :, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = values
+
+                print("    Computing thermocline.")
+                dt = np.reshape(t, [t.shape[0], t.shape[1], t.shape[2] * t.shape[3]])
+                dt[dt == -999] = np.nan
+                array = xr.DataArray(
+                    data=dt,
+                    dims=["time", "depth", "data"],
+                    coords=dict(
+                        time=("time", time),
+                        depth=("depth", depth),
+                        data=("data", np.arange(dt.shape[2]))
                     )
-                    therm, index = pylake.thermocline(array)
-                    therm = np.array(therm)
-                    therm = np.reshape(therm, [therm.shape[0], t.shape[2], t.shape[3]])
-                    therm[therm == np.nanmax(therm)] = np.nan
-                    therm[therm < 0] = np.nan
-                    therm[therm > np.nanmax(depth)] = np.nan
-                    therm[np.isnan(therm)] = -999.0
-                    variables["thermocline"]["nc"][:, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = therm
+                )
+                therm, index = pylake.thermocline(array)
+                therm = np.array(therm)
+                therm = np.reshape(therm, [therm.shape[0], t.shape[2], t.shape[3]])
+                therm[therm == np.nanmax(therm)] = np.nan
+                therm[therm < 0] = np.nan
+                therm[therm > np.nanmax(depth)] = np.nan
+                therm[np.isnan(therm)] = -999.0
+                variables["thermocline"]["nc"][:, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = therm
 
     pickups = list(set([f.split(".")[1] for f in os.listdir(os.path.join(folder, "run")) if "pickup.00" in f]))
     for pickup in pickups:
