@@ -94,7 +94,7 @@ def calculate_variables_delft3d_flow(folder):
             print("Failed to calculate thermocline.")
 
 
-def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
+def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999.0):
     output_files = []
     for thread in [f for f in os.listdir(os.path.join(folder, "run")) if os.path.basename(f).startswith("thread_")]:
         files = [os.path.join(folder, "run", thread, f) for f in os.listdir(os.path.join(folder, "run", thread)) if f.startswith("output.")]
@@ -154,7 +154,7 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
             for key, values in dimensions.items():
                 dst.createDimension(values['dim_name'], values['dim_size'])
             for key, values in variables.items():
-                variables[key]["nc"] = dst.createVariable(values["var_name"], np.float64, values["dim"], fill_value=-999.0)
+                variables[key]["nc"] = dst.createVariable(values["var_name"], np.float64, values["dim"], fill_value=nodata)
                 variables[key]["nc"].units = values["unit"]
                 variables[key]["nc"].long_name = values["long_name"]
 
@@ -193,6 +193,12 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
                     u = uvel
                     v = vvel
 
+                mask = t == 0.0
+                t[mask] = nodata
+                w[mask] = nodata
+                u[mask] = nodata
+                v[mask] = nodata
+
                 data = {"t": t, "w": w, "u": u, "v": v}
 
                 for key, values in data.items():
@@ -216,7 +222,7 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1)):
                 therm[therm == np.nanmax(therm)] = np.nan
                 therm[therm < 0] = np.nan
                 therm[therm > np.nanmax(depth)] = np.nan
-                therm[np.isnan(therm)] = -999.0
+                therm[np.isnan(therm)] = nodata
                 variables["thermocline"]["nc"][:, int(y[0] - 1):int(y[-1]), int(x[0] - 1): int(x[-1])] = therm
 
     pickups = list(set([f.split(".")[1] for f in os.listdir(os.path.join(folder, "run")) if "pickup.00" in f]))
