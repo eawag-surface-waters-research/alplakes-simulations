@@ -165,7 +165,7 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999
 
             for f in output_files:
                 print("  Reading {}".format(os.path.basename(os.path.dirname(f[0]))))
-                if len(f) > 0:
+                if len(f) > 1:
                     with xr.open_mfdataset(f) as ds:
                         x = np.array(ds["X"].values)
                         y = ds["Y"].values
