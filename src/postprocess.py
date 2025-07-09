@@ -9,6 +9,8 @@ from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta, SU
 import functions
 
+import matplotlib.pyplot as plt
+
 
 def verify_simulation_delft3d_flow(folder):
     print("Verify simulation results")
@@ -193,11 +195,17 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999
                     u = uvel
                     v = vvel
 
-                mask = t == 0.0
+                mask = (t == 0.0) | np.isnan(t)
                 t[mask] = nodata
                 w[mask] = nodata
                 u[mask] = nodata
                 v[mask] = nodata
+
+                failed = np.all(t == nodata, axis=(1, 2, 3))
+                if np.any(failed):
+                    failed_index = np.argmax(failed)
+                    os.remove(os.path.join(output_folder, week_start + ".nc"))
+                    raise ValueError("Simulation failed at time: {}, index: {}".format(time[failed_index], failed_index))
 
                 data = {"t": t, "w": w, "u": u, "v": v}
 
