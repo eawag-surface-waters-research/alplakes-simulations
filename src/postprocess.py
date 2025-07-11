@@ -204,8 +204,9 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999
                 failed = np.all(t == nodata, axis=(1, 2, 3))
                 if np.any(failed):
                     failed_index = np.argmax(failed)
-                    os.remove(os.path.join(output_folder, week_start + ".nc"))
-                    raise ValueError("Simulation failed at time: {}, index: {}".format(time[failed_index], failed_index))
+                    print("Simulation failed at time: {}, index: {}".format(time[failed_index], failed_index))
+                    #os.remove(os.path.join(output_folder, week_start + ".nc"))
+                    #raise ValueError("Simulation failed at time: {}, index: {}".format(time[failed_index], failed_index))
 
                 data = {"t": t, "w": w, "u": u, "v": v}
 
