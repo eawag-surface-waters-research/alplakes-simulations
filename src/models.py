@@ -706,15 +706,15 @@ class MitGCM(object):
             weather_folder = os.path.join(self.simulation_dir, "weather")
             os.makedirs(binary_folder, exist_ok=True)
 
-            def process_variable(var_name, output_name):
+            def process_variable(var_name, output_name, zero_nan_slice=False):
                 self.log.info(f'Interpolating {var_name} to grid...', indent=2)
-                data = weather.weather_files_to_grid(weather_folder, var_name, self.params["start"], self.params["end"], self.grid, 1)
+                data = weather.weather_files_to_grid(weather_folder, var_name, self.params["start"], self.params["end"], self.grid, 1, zero_nan_slice)
                 weather.write_binary(os.path.join(binary_folder, f'{output_name}.bin'), data, endian_type=endian_type)
                 return data
 
             process_variable('U', 'u10')
             process_variable('V', 'v10')
-            process_variable('GLOB', 'swdown')
+            process_variable('GLOB', 'swdown', zero_nan_slice=True)
 
             atemp = process_variable('T_2M', 'atemp')
             apress = process_variable('PS', 'apressure')

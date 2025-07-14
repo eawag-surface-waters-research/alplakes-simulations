@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import boto3
@@ -1057,12 +1058,14 @@ def extract_data_inputs_delft3dflow(folder, slice):
     return input_files
 
 
-def extract_mitgcm_binary_file(file, shape):
+def extract_mitgcm_binary_file(file, shape, timesteps):
     with open(file, 'rb') as fid:
         binary_data = np.fromfile(fid, dtype='>f8')
     t = int(len(binary_data) / (shape[0] * shape[1]))
+    if t != timesteps:
+        print("Incorrect number of timesteps ({}) in inputs, should be {}".format(t, timesteps))
     data = binary_data.reshape((t, shape[0], shape[1]))
-    data = data[:216, ::-1, :]
+    data = data[:timesteps, ::-1, :]
     return data
 
 
@@ -1123,12 +1126,12 @@ def extract_data_inputs_mitgcm(folder, slice):
     e = extract_parameters_from_file(os.path.join(folder, "run_config/data"), ["endTime"])["endTime"]
     origin = extract_parameters_from_file(os.path.join(folder, "run_config/data.cal"), ["startDate_1"])["startDate_1"]
     start = datetime.strptime(origin, "%Y%m%d") + timedelta(seconds=float(s))
-    timesteps = int((float(e) - float(s))/3600)
+    timesteps = int((float(e) - float(s))/3600) + 1
     timestamps = [start + timedelta(hours=i) for i in range(timesteps)]
     for file in os.listdir(binary_data):
         if "bathy" in file:
             continue
-        data = extract_mitgcm_binary_file(os.path.join(binary_data, file), shape)
+        data = extract_mitgcm_binary_file(os.path.join(binary_data, file), shape, timesteps)
         input_files.append({"file": file, "timestamps": timestamps, "data": data, "slice_index": slice_index})
     return input_files
 

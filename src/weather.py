@@ -114,18 +114,20 @@ def download_meteolakes_cosmo_point(x, y, start, end, variables, api, today):
     print("download_meteolakes_cosmo_point not currently implemented")
 
 
-def weather_files_to_grid(folder, variable, start_date, end_date, mitgcm_grid, parallel_n):
+def weather_files_to_grid(folder, variable, start_date, end_date, mitgcm_grid, parallel_n, zero_nan_slice):
     files = glob.glob(os.path.join(folder, f'*.json'))
+    files.sort()
     with Pool(parallel_n) as pool:
         all_data = pool.starmap(interp_to_grid, [(file, variable, mitgcm_grid) for file in files])
-
     all_data = xr.concat(all_data, dim='T').sortby('T')
-
     unique_values, unique_ind = np.unique(all_data['T'].values, return_index=True)
     all_data_cleaned = all_data.isel(T=np.sort(unique_ind))
-    datetime_list = pd.date_range(start=start_date, end=end_date + timedelta(days=1), freq="h").to_list()
+    datetime_list = pd.date_range(start=start_date, end=end_date, freq="h").to_list()
     interp_data = all_data_cleaned.interp({'T': datetime_list})
-
+    if zero_nan_slice:
+        all_nan_mask = interp_data.isnull().all(dim=['Y', 'X'])  # shape: (T,)
+        all_nan_mask_expanded = all_nan_mask.broadcast_like(interp_data)
+        interp_data = interp_data.where(~all_nan_mask_expanded, 0)
     return interp_data.transpose('T', 'Y', 'X')
 
 
