@@ -606,6 +606,8 @@ class MitGCM(object):
             if len(nPxy) > 1:
                 self.log.info("Using multiple threads.", indent=1)
                 nPx, nPy = int(nPxy[0]), int(nPxy[1])
+            elif int(nPxy[0]) > 1:
+                raise ValueError("For multiple threads you must specify nPx_nPy where Nx is factorable by nPx and Ny is factorable by nPy")
             else:
                 self.log.info("Single threaded, for multiple threads set the thread parameter to nPx_nPy", indent=1)
                 nPx, nPy = 1, 1
