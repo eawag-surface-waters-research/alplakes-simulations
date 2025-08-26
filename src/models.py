@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults
 
 
 class Delft3D(object):
@@ -552,10 +552,10 @@ class MitGCM(object):
             self.log.info("Using profile {} for initial conditions".format(self.profile), indent=1)
             df = pd.read_csv(os.path.join(self.simulation_dir, "profiles", self.profile))
             df = df.set_index('depth').to_xarray()
-            z_grid = np.cumsum(self.grid.dz.flatten())
+            z_grid = np.cumsum(self.grid.dz)
             df_i = df.interp(depth=z_grid, method='linear')
             df_f = df_i.ffill(dim='depth').bfill(dim='depth')
-            profile = df_f['temperature'].values.reshape(self.grid.dz.shape)
+            profile = np.round(df_f['temperature'].values, 3)
         else:
             profile = np.full(self.grid.dz.shape, 4.0)
         self.initial_temperature = profile
@@ -575,24 +575,29 @@ class MitGCM(object):
             end_time_in_second_from_ref_date = (self.params["end"] - origin).total_seconds()
 
             self.log.info("Editing run_config/data.cal", indent=1)
-            modify_arguments('!reference_date!', [origin.strftime('%Y%m%d')], os.path.join(self.simulation_dir, 'run_config/data.cal'))
+            modify_arguments('!reference_date!', origin.strftime('%Y%m%d'), os.path.join(self.simulation_dir, 'run_config/data.cal'))
 
             self.log.info("Editing run_config/data.exf", indent=1)
-            modify_arguments('!start_date!', [self.params["start"].strftime('%Y%m%d')], os.path.join(self.simulation_dir, 'run_config/data.exf'))
+            file_path = os.path.join(self.simulation_dir, 'run_config/data.exf')
+            modify_arguments('!start_date!', self.params["start"].strftime('%Y%m%d'), file_path)
+            if "overwrite" in self.properties and "data.exf" in self.properties["overwrite"]:
+                overwrite_defaults(self.properties["overwrite"]["data.exf"], file_path)
 
             self.log.info("Editing run_config/data", indent=1)
             file_path = os.path.join(self.simulation_dir, 'run_config/data')
             modify_arguments('!initial_temperature!', self.initial_temperature, file_path)
             modify_arguments('!initial_salinity!', self.initial_salinity, file_path)
-            modify_arguments('!start_time!', [start_time_in_second_from_ref_date], file_path)
-            modify_arguments('!end_time!', [end_time_in_second_from_ref_date], file_path)
+            modify_arguments('!start_time!', start_time_in_second_from_ref_date, file_path)
+            modify_arguments('!end_time!', end_time_in_second_from_ref_date, file_path)
             if self.restart_id:
-                modify_arguments('!pickup_number!', [self.restart_id], file_path)
+                modify_arguments('!pickup_number!', self.restart_id, file_path)
             else:
-                modify_arguments('!pickup_number!', [""], file_path)
-            modify_arguments('!grid_resolution!', [self.grid.parameters["resolution"]], file_path)
-            modify_arguments('!time_step!', [self.properties["timestep"]], file_path)
+                modify_arguments('!pickup_number!', "", file_path)
+            modify_arguments('!grid_resolution!', self.grid.parameters["resolution"], file_path)
+            modify_arguments('!time_step!', self.properties["timestep"], file_path)
             modify_arguments('!dz_grid!', self.grid.dz, file_path)
+            if "overwrite" in self.properties and "data" in self.properties["overwrite"]:
+                overwrite_defaults(self.properties["overwrite"]["data"], file_path)
 
             threads = self.params["threads"]
             Nx = self.grid.parameters["Nx"]
@@ -630,12 +635,12 @@ class MitGCM(object):
 
                 nPx = (nPx * nPy) - len(land_cores)
                 nPy = 1
-                modify_arguments('!Nx!', [Nx], exch2_path)
-                modify_arguments('!Ny!', [Ny], exch2_path)
+                modify_arguments('!Nx!', Nx, exch2_path)
+                modify_arguments('!Ny!', Ny, exch2_path)
                 if len(land_cores) > 0:
-                    modify_arguments('!blank_list!', [f'blankList(1:{len(land_cores)})=   {",".join(map(str, map(int, land_cores)))},'], exch2_path)
+                    modify_arguments('!blank_list!', f'blankList(1:{len(land_cores)})=   {",".join(map(str, map(int, land_cores)))},', exch2_path)
                 else:
-                    modify_arguments('!blank_list!', [""], exch2_path)
+                    modify_arguments('!blank_list!', "", exch2_path)
                 self.log.info("Ignoring {} chunks with no lake data, actually using {} cores".format(len(land_cores), nPx), indent=2)
             else:
                 self.log.info("exch2 files not available, computing entire grid.", indent=1)
@@ -643,13 +648,13 @@ class MitGCM(object):
             self.log.info("Editing code/SIZE.h", indent=1)
             size_file = os.path.join(self.simulation_dir, "code/SIZE.h")
             Nr = np.count_nonzero(~np.isnan(self.grid.dz))
-            modify_arguments('!nPx!', [nPx], size_file)
-            modify_arguments('!nPy!', [nPy], size_file)
-            modify_arguments('!Nx!', [Nx], size_file)
-            modify_arguments('!Ny!', [Ny], size_file)
-            modify_arguments('!Nr!', [Nr], size_file)
-            modify_arguments('!sNx!', [sNx], size_file)
-            modify_arguments('!sNy!', [sNy], size_file)
+            modify_arguments('!nPx!', nPx, size_file)
+            modify_arguments('!nPy!', nPy, size_file)
+            modify_arguments('!Nx!', Nx, size_file)
+            modify_arguments('!Ny!', Ny, size_file)
+            modify_arguments('!Nr!', Nr, size_file)
+            modify_arguments('!sNx!', sNx, size_file)
+            modify_arguments('!sNy!', sNy, size_file)
 
             self.log.info("Editing code/swfrac.F", indent=1)
             if "secchi" not in self.properties or not isinstance(self.properties["secchi"], list):
@@ -661,11 +666,11 @@ class MitGCM(object):
                 secchi = secchi + ",\n     &                    {} _d 0".format(self.properties["secchi"][i])
             secchi = secchi + " /"
 
-            modify_arguments('!depths!', [depths], swfrac_file)
-            modify_arguments('!secchi!', [secchi], swfrac_file)
+            modify_arguments('!depths!', depths, swfrac_file)
+            modify_arguments('!secchi!', secchi, swfrac_file)
 
             self.log.info("Editing entrypoint.sh", indent=1)
-            modify_arguments('!cores!', [nPx * nPy], os.path.join(self.simulation_dir, "entrypoint.sh"))
+            modify_arguments('!cores!', nPx * nPy, os.path.join(self.simulation_dir, "entrypoint.sh"))
 
             self.log.end_stage()
         except Exception as e:

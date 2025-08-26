@@ -23,6 +23,9 @@ C Use "Exact Convervation" of fluid in Free-Surface formulation so that
 C d/dt(eta) is exactly equal to - Div.Transport
 #define EXACT_CONSERV
 
+C Use calendar package to get month-dependent secchi depths
+#define ALLOW_CAL
+
 C TODO: check if we need the following options:
 C #define INCLUDE_IMPLVERTADV_CODE
 C #define ALLOW_ADAMSBASHFORTH_3
