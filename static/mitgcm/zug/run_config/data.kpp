@@ -1,0 +1,12 @@
+# Parameters for the KPP turbulence model (vertical mixing processes)
+
+ &KPP_PARM01
+ KPPmixingMaps          = .FALSE.
+ KPPwriteState          = .TRUE.
+ KPP_ghatUseTotalDiffus = .TRUE.
+ Ricr            = 0.4,
+ epsilon         = 0.6,
+ concv           = 1.8,
+ minKPPhbl       = 1,
+ &
+

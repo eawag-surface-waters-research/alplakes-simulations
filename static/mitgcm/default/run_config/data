@@ -26,7 +26,7 @@
 # Equation of state, scheme by McDougall et al (2003)
  eosType             = 'MDJWF'
 
-# Options for modeling surface of teh lake
+# Options for modeling surface of the lake
  rigidLid            = .FALSE.
  implicitFreeSurface = .TRUE.
 

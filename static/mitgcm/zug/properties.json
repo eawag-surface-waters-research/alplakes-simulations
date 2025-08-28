@@ -1,0 +1,15 @@
+{
+  "timestep": 40,
+  "endian_type": ">f8",
+  "secchi": [7.2, 8.1, 5.6, 3.0, 7.5, 6.1, 3.9, 3.1, 4.1, 4.5, 5.0, 5.5],
+  "overwrite": {
+    "data": {
+      "viscC2smag": 0.7,
+      "viscAhGrid": 0.0125,
+      "diffKhT": 0.24
+    },
+    "data.exf": {
+      "cdalton": 0.0533
+    }
+  }
+}

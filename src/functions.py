@@ -784,7 +784,7 @@ class MitgcmGrid:
             self.y = np.load(os.path.join(path_grid, 'y.npy'))
             self.lat_grid = np.load(os.path.join(path_grid, 'lat_grid.npy'))
             self.lon_grid = np.load(os.path.join(path_grid, 'lon_grid.npy'))
-            self.dz = pd.read_csv(os.path.join(path_grid, 'dz.csv'), header=None).to_numpy()
+            self.dz = np.round(np.load(os.path.join(path_grid, 'dz.npy')), 3)
             with open(os.path.join(path_grid, 'parameters.json'), 'r') as file:
                 self.parameters = json.load(file)
         except FileNotFoundError as e:
@@ -798,7 +798,7 @@ def get_mitgcm_grid(path_folder_grid: str) -> MitgcmGrid:
     grid.load_from_path(path_folder_grid)
     return grid
 
-def modify_arguments(param_name: str, values: np.array, file_path):
+def modify_arguments(param_name: str, values, file_path, wrap=9):
     """
     Function to modify run-time parameters, based on variable name, with the
     assumption that they are stored the file as '!varName!'
@@ -811,20 +811,65 @@ def modify_arguments(param_name: str, values: np.array, file_path):
     with open(file_path, 'r') as infile:
         content = infile.read()
 
-    str_values = ''
-    if len(values) > 1:
-        for row in values:
-            for val in row:
-                if val != np.nan:
-                    str_values += str(str(val) + ',')
-            str_values += '\n'
+    if isinstance(values, np.ndarray):
+        if values.ndim == 1:
+            lines = []
+            for i in range(0, len(values), wrap):
+                chunk = values[i:i + wrap]
+                line_str = ",".join(str(v) for v in chunk if not np.isnan(v))
+                lines.append(line_str)
+            str_values = "\n".join(lines)
+        else:
+            lines = []
+            for row in values:
+                row_str = ",".join(str(v) for v in row if not np.isnan(v))
+                lines.append(row_str)
+            str_values = "\n".join(lines)
     else:
-        str_values = str(values[0])
+        str_values = str(values)
 
     modified_content = content.replace(param_name, str_values)
 
     with open(file_path, 'w') as outfile:
         outfile.write(modified_content)
+
+
+def overwrite_defaults(param_dict, file_path):
+    """
+        Update parameter values in a file while maintaining formatting and spacing,
+        without using regex.
+
+        Args:
+            param_dict (dict): Dictionary of {parameter_name: new_value}
+            file_path (str): Path to the text file to modify.
+        """
+    updated_lines = []
+
+    with open(file_path, "r") as f:
+        for line in f:
+            stripped = line.lstrip()
+            for key, value in param_dict.items():
+                if stripped.startswith(key) and "=" in stripped:
+                    # Split into before '=' and after '='
+                    before_eq, after_eq = line.split("=", 1)
+
+                    # Preserve spacing after '='
+                    leading_after = len(after_eq) - len(after_eq.lstrip())
+                    spaces_after_eq = after_eq[:leading_after]
+
+                    # Identify the old value
+                    parts = after_eq.lstrip().split(maxsplit=1)
+                    old_value = parts[0]
+                    rest = parts[1] if len(parts) > 1 else ""
+
+                    # Rebuild the line
+                    line = f"{before_eq}={spaces_after_eq}{value}{(' ' + rest) if rest else ''}\n"
+                    break
+            updated_lines.append(line)
+
+    with open(file_path, "w") as f:
+        f.writelines(updated_lines)
+
 
 def calculate_specific_humidity(temp, relhum, atm_press):
     """
