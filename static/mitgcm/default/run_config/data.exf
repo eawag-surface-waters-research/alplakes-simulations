@@ -9,6 +9,9 @@
  cdalton             = 0.053
  useExfCheckRange    = .FALSE.
  readStressOnCgrid   = .TRUE.
+ cdrag_1             = 0.0027000
+ cdrag_2             = 0.0001420
+ cdrag_3             = 0.0000764
  &
 
  &EXF_NML_02

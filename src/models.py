@@ -6,6 +6,7 @@ import subprocess
 import numpy as np
 import pandas as pd
 import xarray as xr
+from scipy.interpolate import interp1d
 from distutils.dir_util import copy_tree
 from datetime import datetime, timedelta
 
@@ -551,11 +552,10 @@ class MitGCM(object):
         if self.profile:
             self.log.info("Using profile {} for initial conditions".format(self.profile), indent=1)
             df = pd.read_csv(os.path.join(self.simulation_dir, "profiles", self.profile))
-            df = df.set_index('depth').to_xarray()
             z_grid = np.cumsum(self.grid.dz)
-            df_i = df.interp(depth=z_grid, method='linear')
-            df_f = df_i.ffill(dim='depth').bfill(dim='depth')
-            profile = np.round(df_f['temperature'].values, 3)
+            f = interp1d(df['depth'].values, df['temperature'].values,
+                         kind='linear', fill_value='extrapolate')
+            profile = np.round(f(z_grid), 3)
         else:
             profile = np.full(self.grid.dz.shape, 4.0)
         self.initial_temperature = profile
@@ -600,8 +600,8 @@ class MitGCM(object):
                 overwrite_defaults(self.properties["overwrite"]["data"], file_path)
 
             threads = self.params["threads"]
-            Nx = self.grid.parameters["Nx"]
-            Ny = self.grid.parameters["Ny"]
+            Nx = int(self.grid.parameters["Nx"])
+            Ny = int(self.grid.parameters["Ny"])
             nPxy = str(threads).split("_")
             if len(nPxy) > 1:
                 self.log.info("Using multiple threads.", indent=1)
@@ -733,7 +733,10 @@ class MitGCM(object):
 
             self.log.info('Computing longwave radiation (lwdown)...', indent=2)
             clct = process_variable('CLCT', 'clct')
-            lwr = compute_longwave_radiation(atemp, relhum, clct)
+            if "a_lw" in self.properties:
+                lwr = compute_longwave_radiation(atemp, relhum, clct, a=self.properties["a_lw"])
+            else:
+                lwr = compute_longwave_radiation(atemp, relhum, clct)
             weather.write_binary(os.path.join(binary_folder, 'lwdown.bin'), lwr, endian_type=endian_type)
 
             shutil.rmtree(weather_folder)

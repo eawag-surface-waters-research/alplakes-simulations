@@ -844,12 +844,14 @@ def overwrite_defaults(param_dict, file_path):
             file_path (str): Path to the text file to modify.
         """
     updated_lines = []
+    found_keys = set()
 
     with open(file_path, "r") as f:
         for line in f:
             stripped = line.lstrip()
             for key, value in param_dict.items():
                 if stripped.startswith(key) and "=" in stripped:
+                    found_keys.add(key)
                     # Split into before '=' and after '='
                     before_eq, after_eq = line.split("=", 1)
 
@@ -866,6 +868,10 @@ def overwrite_defaults(param_dict, file_path):
                     line = f"{before_eq}={spaces_after_eq}{value}{(' ' + rest) if rest else ''}\n"
                     break
             updated_lines.append(line)
+
+    missing_keys = set(param_dict.keys()) - found_keys
+    if missing_keys:
+        raise KeyError(f"The following parameters were not found in the file: {', '.join(sorted(missing_keys))}")
 
     with open(file_path, "w") as f:
         f.writelines(updated_lines)
@@ -915,21 +921,19 @@ def compute_vapor_pressure(atemp, relhum):
     return rh_fraction * saturation_vapor_pressure  # vapor pressure in mbar (=hPa)
 
 
-def compute_longwave_radiation(atemp, relhum, cloud_cover):
+def compute_longwave_radiation(atemp, relhum, cloud_cover, a=1.09, A_L=0.03):
     """
     Compute longwave radiation from air temperature and cloud cover.
 
     - temp: Air temperature in Kelvin
-    - cloud_cover: %
+    - relhum: Relative humidity as a percentage (e.g., 60 for 60%)
+    - cloud_cover: 0 to 1
+    - a: Calibration parameter
+    - A_L: Infrared radiation albedo
     """
-    # cloud cover should be from 0 to 1
     cloud_cover = cloud_cover/100
     vaporPressure = compute_vapor_pressure(atemp, relhum)  # in units mbar
-    A_L = 0.03   # Infrared radiation albedo
-    a = 1.09     # Calibration parameter
-
     E_a = a * (1 + 0.17 * np.power(cloud_cover, 2)) * 1.24 * np.power(vaporPressure / atemp, 1./7)  # emissivity
-
     lwr = (1 - A_L) * 5.67e-8 * E_a * np.power(atemp, 4)
     return lwr
 
