@@ -44,6 +44,9 @@ class Delft3D(object):
         else:
             self.log = logger()
 
+        if "simulation_dir" in params:
+            self.simulation_dir = params["simulation_dir"]
+
         if "model" in params and "docker" in params:
             self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
 
