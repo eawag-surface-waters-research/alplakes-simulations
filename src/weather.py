@@ -173,3 +173,26 @@ def write_binary(filename, data, endian_type=">f8"):
     fid = open(filename, 'wb')
     data.tofile(fid)
     fid.close()
+
+
+def write_swan_wind(filepath, data):
+    """Write a wind component (U or V) to SWAN ASCII format.
+
+    SWAN READINP WIND with idla=3 and FREE format reads the file row-by-row,
+    Y ascending (south to north). Each timestep occupies Ny consecutive rows
+    of Nx space-separated values. No timestamp headers — timing is defined
+    entirely by the INPGRID NONSTATIONARY clause in the INPUT control file.
+
+    Args:
+        filepath: Output file path (e.g. wind_u.wnd)
+        data: xarray.DataArray with dims (T, Y, X)
+    """
+    arr = data.to_numpy()
+    y_coords = data.coords['Y'].values
+    if len(y_coords) > 1 and y_coords[0] > y_coords[-1]:
+        arr = arr[:, ::-1, :]
+    with open(filepath, 'w') as f:
+        for t in range(arr.shape[0]):
+            for j in range(arr.shape[1]):
+                f.write(' '.join('{:.4f}'.format(v) for v in arr[t, j, :]))
+                f.write('\n')

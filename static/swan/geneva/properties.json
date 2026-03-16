@@ -1,0 +1,28 @@
+{
+  "grid": {
+    "source": "delft3d-flow/geneva",
+    "system": "CH1903",
+    "buffer": 0.02,
+    "resolution": 500
+  },
+  "spectral": {
+    "msc": 24,
+    "mdc": 36,
+    "flow": 0.03,
+    "fhigh": 1.0
+  },
+  "physics": {
+    "gen": "GEN3",
+    "whitecap": "KOMEN",
+    "fric": "JONSWAP",
+    "fric_coef": 0.067,
+    "breaking": true,
+    "alpha": 1.0,
+    "gamma": 0.73
+  },
+  "timestep": 1800,
+  "output": {
+    "variables": ["HS", "PDIR", "TM01"],
+    "frequency": 3600
+  }
+}

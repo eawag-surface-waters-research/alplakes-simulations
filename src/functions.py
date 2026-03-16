@@ -798,6 +798,150 @@ def get_mitgcm_grid(path_folder_grid: str) -> MitgcmGrid:
     grid.load_from_path(path_folder_grid)
     return grid
 
+
+class SWANGrid:
+    """Grid representation for SWAN, supporting regular and curvilinear layouts.
+
+    Exposes the same interface as MitgcmGrid (.lat_grid, .lon_grid, .x, .y,
+    .parameters) so it can be passed directly to weather.weather_files_to_grid().
+    """
+
+    def __init__(self):
+        self.grid_type = ""       # "regular" or "curvilinear"
+        # Regular grids (MITgcm source or inline):
+        self.x0 = 0.0
+        self.y0 = 0.0
+        self.dx = 0.0
+        self.dy = 0.0
+        self.Nx = 0
+        self.Ny = 0
+        self.rotation = 0.0
+        # Curvilinear grids (Delft3D source):
+        self.grd_file = ""        # basename of .grd file in simulation_dir
+        self.Mx = 0               # number of grid nodes in M direction
+        self.My = 0               # number of grid nodes in N direction
+        # Shared (MitgcmGrid interface):
+        self.system = ""          # "CH1903", "UTM", or "WGS84"
+        self.lat_grid = None      # 2D ndarray, shape (My, Mx) or (Ny, Nx)
+        self.lon_grid = None
+        self.x = None             # 1D coordinate vector
+        self.y = None
+        self.parameters = {}      # must contain {"buffer": float}
+
+
+def read_delft3d_grd(grd_path):
+    """Parse a Delft3D .grd file and return grid node coordinates.
+
+    The file stores My ETA blocks of X coordinates followed by My ETA blocks
+    of Y coordinates. Each block contains Mx values for one row.
+
+    Returns:
+        X: ndarray shape (My, Mx) — X coordinates of grid nodes
+        Y: ndarray shape (My, Mx) — Y coordinates of grid nodes
+        Mx: int — number of grid nodes in M direction
+        My: int — number of grid nodes in N direction
+    """
+    with open(grd_path, 'r') as f:
+        lines = f.readlines()
+
+    Mx = My = None
+    data_start = 0
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith('*') or stripped.lower().startswith('coordinate') or stripped.lower().startswith('missing'):
+            i += 1
+            continue
+        parts = stripped.split()
+        if Mx is None and len(parts) == 2:
+            try:
+                Mx, My = int(parts[0]), int(parts[1])
+                i += 1
+                continue
+            except ValueError:
+                pass
+        if stripped == '0 0 0':
+            data_start = i + 1
+            break
+        i += 1
+
+    if Mx is None or My is None:
+        raise ValueError("Could not parse grid dimensions from {}".format(grd_path))
+
+    all_blocks = []
+    current_vals = []
+
+    for j in range(data_start, len(lines)):
+        line = lines[j]
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if 'ETA=' in line:
+            if current_vals:
+                all_blocks.append(current_vals)
+            parts = line.split()
+            eta_idx = next(k for k, p in enumerate(parts) if 'ETA=' in p)
+            current_vals = [float(v) for v in parts[eta_idx + 2:]]
+        else:
+            current_vals.extend(float(v) for v in stripped.split())
+
+    if current_vals:
+        all_blocks.append(current_vals)
+
+    if len(all_blocks) != 2 * My:
+        raise ValueError("Expected {} ETA blocks, got {} in {}".format(2 * My, len(all_blocks), grd_path))
+
+    X = np.array([block for block in all_blocks[:My]])
+    Y = np.array([block for block in all_blocks[My:]])
+    return X, Y, Mx, My
+
+
+def read_delft3d_dep(dep_path, Mx, My):
+    """Parse a Delft3D .dep depth file.
+
+    The file contains (My+1) * (Mx+1) values. The extra row/column are a
+    Delft3D convention and are stripped. Missing value marker (-999) is
+    replaced with NaN. Depths are stored as positive values (metres).
+
+    Returns:
+        ndarray shape (My, Mx) with positive water depths; NaN = land/outside.
+    """
+    with open(dep_path, 'r') as f:
+        content = f.read()
+    values = np.array([float(v) for v in content.split()])
+    expected = (My + 1) * (Mx + 1)
+    if len(values) != expected:
+        raise ValueError("Expected {} depth values, got {} in {}".format(expected, len(values), dep_path))
+    arr = values.reshape(My + 1, Mx + 1)
+    arr = arr[:My, :Mx]
+    arr[arr < -900] = np.nan
+    return arr
+
+
+def write_swan_grid(filepath, X, Y):
+    """Write grid coordinates to SWAN READGRID CURV compatible ASCII format (idla=1).
+
+    Format: all X coordinates row by row (My rows × Mx columns), then all Y
+    coordinates in the same layout. Missing nodes (value 0.0 from the Delft3D
+    .grd format) are written as 0.0 — SWAN ignores coordinates outside the
+    bathymetry mask.
+
+    Args:
+        filepath: Output file path
+        X: ndarray shape (My, Mx) of X coordinates
+        Y: ndarray shape (My, Mx) of Y coordinates
+    """
+    with open(filepath, 'w') as f:
+        for j in range(X.shape[0]):
+            f.write(' '.join('{:.3f}'.format(v) for v in X[j, :]))
+            f.write('\n')
+        for j in range(Y.shape[0]):
+            f.write(' '.join('{:.3f}'.format(v) for v in Y[j, :]))
+            f.write('\n')
+
+
 def modify_arguments(param_name: str, values, file_path, wrap=9):
     """
     Function to modify run-time parameters, based on variable name, with the
