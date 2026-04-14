@@ -13,7 +13,8 @@ from functions import latlng_to_ch1903, latlng_to_utm, download_data
 
 
 def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties, folder, no_data_value, origin=datetime(2008, 3, 1, tzinfo=pytz.utc), method='linear', warning=print):
-    var = np.array(pd.to_numeric(var, errors='coerce'), dtype=float)
+    var = np.array(var)
+    var = np.array(pd.to_numeric(var.flatten(), errors='coerce'), dtype=float).reshape(var.shape)
     var = var + properties["adjust"]
     if "min" in properties and np.any(var < properties["min"]):
         var[var < properties["min"]] = properties["min"]
@@ -23,7 +24,7 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
         var[var > properties["max"]] = properties["max"]
         warning("{} values detected above allowable max of {}{}, setting values to max."
                 .format(properties["parameter"], properties["min"], properties["unit"]))
-    time = np.array(time, dtype="datetime64")
+    time = np.array(pd.to_datetime(time, utc=True).tz_convert(None), dtype="datetime64")
     lat = np.array(lat)
     lng = np.array(lng)
     if system == "WGS84":
@@ -40,7 +41,7 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
         warning("Lake grid area exceeds model weather area")
     with open(os.path.join(folder, properties["filename"]), "a") as f:
         for i in range(len(time)):
-            diff = datetime.fromtimestamp(time[i].astype('datetime64[s]').astype('int'), pytz.utc) - origin
+            diff = datetime.fromtimestamp(int(time[i].astype('datetime64[s]').astype('int')), pytz.utc) - origin
             hours = diff.total_seconds() / 3600
             time_str = "TIME = " + str(hours) + "0 hours since " + origin.strftime(
                 "%Y-%m-%d %H:%M:%S") + " +00:00"

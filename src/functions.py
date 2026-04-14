@@ -49,6 +49,7 @@ def convert_to_unit(time, units):
 
 
 def convert_from_unit(time, units):
+    time = float(time)
     if units == "seconds since 2008-03-01 00:00:00":
         return datetime.fromtimestamp(time + (
                     datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(
@@ -1005,7 +1006,7 @@ def extract_data_from_output_file(file_path, variable, pattern, depth=1):
             pattern[-2] = depth_index
         data = np.array(nc.variables[variable][pattern])
         data[data == -999] = np.nan
-        timestamps = [datetime.utcfromtimestamp(t + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds()).replace(tzinfo=timezone.utc) for t in times]
+        timestamps = [datetime.fromtimestamp(float(t) + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds(), tz=timezone.utc) for t in times]
         return timestamps, data
 
 
@@ -1019,7 +1020,7 @@ def plot_input_heatmaps(inputs, folder):
             fig.suptitle(inputs[0]["timestamps"][i])
             for j in range(len(inputs)):
                 plt.subplot(3, 3, j + 1)
-                plt.imshow(inputs[j]["data"][i], cmap='coolwarm', interpolation='nearest')
+                plt.imshow(inputs[j]["data"][min(i, len(inputs[j]["data"]) - 1)], cmap='coolwarm', interpolation='nearest')
                 plt.title(inputs[j]["file"].split(".")[0])
                 plt.colorbar()
             plt.tight_layout()
