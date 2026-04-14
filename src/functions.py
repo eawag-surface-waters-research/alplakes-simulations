@@ -800,15 +800,14 @@ def get_mitgcm_grid(path_folder_grid: str) -> MitgcmGrid:
 
 
 class SWANGrid:
-    """Grid representation for SWAN, supporting regular and curvilinear layouts.
+    """Regular rectangular grid representation for SWAN.
 
     Exposes the same interface as MitgcmGrid (.lat_grid, .lon_grid, .x, .y,
     .parameters) so it can be passed directly to weather.weather_files_to_grid().
     """
 
     def __init__(self):
-        self.grid_type = ""       # "regular" or "curvilinear"
-        # Regular grids (MITgcm source or inline):
+        self.grid_type = "regular"
         self.x0 = 0.0
         self.y0 = 0.0
         self.dx = 0.0
@@ -816,15 +815,10 @@ class SWANGrid:
         self.Nx = 0
         self.Ny = 0
         self.rotation = 0.0
-        # Curvilinear grids (Delft3D source):
-        self.grd_file = ""        # basename of .grd file in simulation_dir
-        self.Mx = 0               # number of grid nodes in M direction
-        self.My = 0               # number of grid nodes in N direction
-        # Shared (MitgcmGrid interface):
         self.system = ""          # "CH1903", "UTM", or "WGS84"
-        self.lat_grid = None      # 2D ndarray, shape (My, Mx) or (Ny, Nx)
+        self.lat_grid = None      # 2D ndarray, shape (Ny, Nx)
         self.lon_grid = None
-        self.x = None             # 1D coordinate vector
+        self.x = None             # 1D coordinate vector (cell centres)
         self.y = None
         self.parameters = {}      # must contain {"buffer": float}
 
@@ -919,27 +913,6 @@ def read_delft3d_dep(dep_path, Mx, My):
     arr[arr < -900] = np.nan
     return arr
 
-
-def write_swan_grid(filepath, X, Y):
-    """Write grid coordinates to SWAN READGRID CURV compatible ASCII format (idla=1).
-
-    Format: all X coordinates row by row (My rows × Mx columns), then all Y
-    coordinates in the same layout. Missing nodes (value 0.0 from the Delft3D
-    .grd format) are written as 0.0 — SWAN ignores coordinates outside the
-    bathymetry mask.
-
-    Args:
-        filepath: Output file path
-        X: ndarray shape (My, Mx) of X coordinates
-        Y: ndarray shape (My, Mx) of Y coordinates
-    """
-    with open(filepath, 'w') as f:
-        for j in range(X.shape[0]):
-            f.write(' '.join('{:.3f}'.format(v) for v in X[j, :]))
-            f.write('\n')
-        for j in range(Y.shape[0]):
-            f.write(' '.join('{:.3f}'.format(v) for v in Y[j, :]))
-            f.write('\n')
 
 
 def modify_arguments(param_name: str, values, file_path, wrap=9):

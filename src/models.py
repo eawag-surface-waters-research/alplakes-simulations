@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults, SWANGrid, read_delft3d_grd, read_delft3d_dep, write_swan_grid
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults, SWANGrid, read_delft3d_grd, read_delft3d_dep
 
 
 class Delft3D(object):
@@ -921,12 +921,6 @@ class SWAN(object):
             else:
                 raise ValueError("No grid source provided")
 
-            if self.grid.grid_type == "curvilinear":
-                grd = self._grid_source_data
-                grid_coord_path = os.path.join(self.simulation_dir, "grid_coord.grd")
-                write_swan_grid(grid_coord_path, grd["X"], grd["Y"])
-                self.log.info("Wrote grid coordinates to grid_coord.grd", indent=2)
-
             self.log.info("Grid type: {}, system: {}".format(self.grid.grid_type, self.grid.system), indent=1)
             self.log.end_stage()
         except Exception as e:
@@ -956,7 +950,7 @@ class SWAN(object):
         Ny = int(round((y1 - y0) / resolution))
         x_centres = x0 + resolution * (np.arange(Nx) + 0.5)
         y_centres = y0 + resolution * (np.arange(Ny) + 0.5)
-        self.log.info("Wind grid: {}x{} cells at {}m resolution".format(Nx, Ny, int(resolution)), indent=2)
+        self.log.info("Regular grid: {}x{} cells at {}m resolution".format(Nx, Ny, int(resolution)), indent=2)
 
         xx, yy = np.meshgrid(x_centres, y_centres)
         if system == "CH1903":
@@ -969,10 +963,7 @@ class SWAN(object):
             raise ValueError("Coordinate system {} not supported for Delft3D source.".format(system))
 
         g = SWANGrid()
-        g.grid_type = "curvilinear"
-        g.Mx = Mx
-        g.My = My
-        # Regular bounding-box grid used for wind INPGRID REGULAR
+        g.grid_type = "regular"
         g.x0 = x0
         g.y0 = y0
         g.dx = resolution
@@ -1026,6 +1017,7 @@ class SWAN(object):
             source_dir = os.path.join(parent_dir, "static", source)
 
             if source_type == "delft3d-flow":
+                from scipy.interpolate import griddata
                 X = self._grid_source_data["X"]
                 Y = self._grid_source_data["Y"]
                 Mx = self._grid_source_data["Mx"]
@@ -1033,8 +1025,13 @@ class SWAN(object):
                 dep_path = os.path.join(source_dir, "{}_depths.dep".format(lake))
                 self.log.info("Reading depths from {}".format(os.path.basename(dep_path)), indent=1)
                 bathy = read_delft3d_dep(dep_path, Mx, My)
-                bathy_swan = np.where(np.isnan(bathy), 0.0, bathy)
-                self.log.info("Curvilinear bathymetry: {}x{} nodes".format(My, Mx), indent=1)
+                valid = (X != 0) & ~np.isnan(bathy)
+                points = np.column_stack([X[valid], Y[valid]])
+                values = bathy[valid]
+                xx, yy = np.meshgrid(self.grid.x, self.grid.y)
+                bathy_interp = griddata(points, values, (xx, yy), method='linear')
+                bathy_swan = np.where(np.isnan(bathy_interp), -999.0, bathy_interp)
+                self.log.info("Interpolated bathymetry onto {}x{} regular grid".format(self.grid.Ny, self.grid.Nx), indent=1)
             elif source_type == "mitgcm":
                 bathy_bin = os.path.join(source_dir, "grid", "bathy.bin")
                 self.log.info("Reading bathymetry from bathy.bin", indent=1)
@@ -1112,53 +1109,26 @@ class SWAN(object):
             # Wind files are always hourly (weather_files_to_grid uses freq="h")
             wind_dt = 3600
 
-            if self.grid.grid_type == "curvilinear":
-                # Curvilinear CGRID from Delft3D source
-                cgrid_mxc = self.grid.Mx - 1
-                cgrid_myc = self.grid.My - 1
-                # Wind uses a regular bounding-box grid
-                wind_mxc = self.grid.Nx - 1
-                wind_myc = self.grid.Ny - 1
-                cgrid_block = (
-                    "CGRID CURVILINEAR {mxc} {myc} EXC 0.0 CIRCLE {mdc} {flow} {fhigh} {msc}\n"
-                    "READGRID COORDINATES 1 'grid_coord.grd' 2 0 0 FREE\n"
-                    "INPGRID BOTTOM CURVILINEAR {mxc} {myc}\n"
-                    "READINP BOTTOM 1 'bottom.bot' 2 0 FREE"
-                ).format(mxc=cgrid_mxc, myc=cgrid_myc,
-                         mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
-                wind_inpgrid = (
-                    "INPGRID WINDX REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                    "READINP WINDX 1 'wind_u.wnd' 1 0 FREE\n"
-                    "INPGRID WINDY REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                    "READINP WINDY 1 'wind_v.wnd' 1 0 FREE"
-                ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
-                         mxc=wind_mxc, myc=wind_myc, dx=self.grid.dx, dy=self.grid.dy,
-                         tbegin=start_str, dt=wind_dt, tend=end_str)
-            else:
-                # CGRID REGULAR syntax: xpc ypc alpc xlenc ylenc mxc myc
-                # xlenc/ylenc = total domain length; mxc/myc = number of mesh intervals (integers)
-                # INPGRID REGULAR syntax: xpinp ypinp alpinp mxinp myinp dxinp dyinp
-                # mxinp/myinp = number of meshes; dxinp/dyinp = mesh size
-                mxc = self.grid.Nx - 1
-                myc = self.grid.Ny - 1
-                xlenc = mxc * self.grid.dx
-                ylenc = myc * self.grid.dy
-                cgrid_block = (
-                    "CGRID REGULAR {x0} {y0} {alpha} {xlenc} {ylenc} {mxc} {myc} CIRCLE {mdc} {flow} {fhigh} {msc}\n"
-                    "INPGRID BOTTOM REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy}\n"
-                    "READINP BOTTOM 1 'bottom.bot' 1 0 0 FREE"
-                ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
-                         xlenc=xlenc, ylenc=ylenc, mxc=mxc, myc=myc,
-                         dx=self.grid.dx, dy=self.grid.dy,
-                         mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
-                wind_inpgrid = (
-                    "INPGRID WINDX REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                    "READINP WINDX 1 'wind_u.wnd' 1 0 FREE\n"
-                    "INPGRID WINDY REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                    "READINP WINDY 1 'wind_v.wnd' 1 0 FREE"
-                ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
-                         mxc=mxc, myc=myc, dx=self.grid.dx, dy=self.grid.dy,
-                         tbegin=start_str, dt=wind_dt, tend=end_str)
+            mxc = self.grid.Nx - 1
+            myc = self.grid.Ny - 1
+            xlenc = mxc * self.grid.dx
+            ylenc = myc * self.grid.dy
+            cgrid_block = (
+                "CGRID REGULAR {x0} {y0} {alpha} {xlenc} {ylenc} {mxc} {myc} CIRCLE {mdc} {flow} {fhigh} {msc}\n"
+                "INPGRID BOTTOM REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} EXC -999\n"
+                "READINP BOTTOM 1 'bottom.bot' 1 0 FREE"
+            ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
+                     xlenc=xlenc, ylenc=ylenc, mxc=mxc, myc=myc,
+                     dx=self.grid.dx, dy=self.grid.dy,
+                     mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
+            wind_inpgrid = (
+                "INPGRID WINDX REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
+                "READINP WINDX 1 'wind_u.wnd' 1 0 FREE\n"
+                "INPGRID WINDY REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
+                "READINP WINDY 1 'wind_v.wnd' 1 0 FREE"
+            ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
+                     mxc=mxc, myc=myc, dx=self.grid.dx, dy=self.grid.dy,
+                     tbegin=start_str, dt=wind_dt, tend=end_str)
 
             breaking_line = ""
             if ph.get("breaking", True):

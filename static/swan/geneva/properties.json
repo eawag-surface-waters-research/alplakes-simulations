@@ -3,7 +3,7 @@
     "source": "delft3d-flow/geneva",
     "system": "CH1903",
     "buffer": 0.02,
-    "resolution": 500
+    "resolution": 1000
   },
   "spectral": {
     "msc": 24,
