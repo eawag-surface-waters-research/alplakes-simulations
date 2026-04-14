@@ -791,6 +791,7 @@ class MitGCM(object):
 
             self.log.info("Running simulation as a subprocess.", indent=1)
             process = subprocess.Popen(["docker", "run",
+                                        "--user", "{}:{}".format(os.getuid(), os.getgid()),
                                         "-v", "{}:/simulation/binary_data".format(os.path.join(self.simulation_dir, "binary_data")),
                                         "-v", "{}:/simulation/run_config".format(os.path.join(self.simulation_dir, "run_config")),
                                         "-v", "{}:/simulation/run".format(os.path.join(self.simulation_dir, "run")),
