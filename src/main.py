@@ -19,8 +19,6 @@ def main(params):
 
 
 if __name__ == "__main__":
-    if sys.version_info[0:2] != (3, 9):
-        raise Exception('Requires python 3.9')
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', help="Model name e.g. delft3d-flow/greifensee", type=str)
     parser.add_argument('--docker', '-d', help="Docker image e.g. eawag/delft3d-flow:6.02.10.142612", type=str,)
