@@ -1,0 +1,14 @@
+{
+  "timestep": 15,
+  "endian_type": ">f8",
+  "secchi": [12,16,14,9,8,7,5,3,4,8,10,11],
+  "a_lw": 1,
+  "overwrite": {
+    "data": {
+      "diffKzT": 1e-06,
+      "viscC2smag": 0.7,
+      "viscAhGrid": 0.0125,
+      "diffKhT": 0.24
+    }
+  }
+}
