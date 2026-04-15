@@ -18,7 +18,7 @@ def empty_arrays(parameters, start, end, no_data=0.0):
     time = np.arange(start, end, timedelta(minutes=parameters["dt"]))
     for river in parameters["rivers"]:
         df = pd.DataFrame(time, columns=['time'])
-        df["minutes"] = (df["time"] - origin).astype('timedelta64[m]')
+        df["minutes"] = (df["time"] - origin).dt.total_seconds().astype(int) // 60
         df["flow"] = no_data
         if "average_monthly_temperature" in river:
             df["temperature"] = monthly_temperature(time, river["average_monthly_temperature"])

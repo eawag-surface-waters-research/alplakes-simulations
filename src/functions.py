@@ -1199,3 +1199,31 @@ def extract_data_outputs_delft3dflow(folder):
         p["timestamps"] = timestamps
         p["data"] = data
     return parameters
+
+
+def extract_data_outputs_mitgcm(folder):
+    postprocess_folder = os.path.join(folder, "postprocess")
+    if not os.path.exists(postprocess_folder):
+        raise ValueError("No postprocess folder found.")
+    files = sorted([os.path.join(postprocess_folder, f) for f in os.listdir(postprocess_folder) if f.endswith(".nc")])
+    if not files:
+        raise ValueError("No output files found in postprocess folder.")
+    parameters = [
+        {"name": "Temperature", "variable": "t"},
+        {"name": "Velocity U", "variable": "u"},
+        {"name": "Velocity V", "variable": "v"},
+    ]
+    all_timestamps = []
+    all_data = {p["variable"]: [] for p in parameters}
+    for file in files:
+        with netCDF4.Dataset(file, "r") as nc:
+            times = np.array(nc.variables["time"][:])
+            all_timestamps.extend([datetime.utcfromtimestamp(float(t)) for t in times])
+            for p in parameters:
+                data = np.array(nc.variables[p["variable"]][:, 0, :, :])
+                data[data == -999.0] = np.nan
+                all_data[p["variable"]].append(data)
+    for p in parameters:
+        p["timestamps"] = all_timestamps
+        p["data"] = np.concatenate(all_data[p["variable"]], axis=0)
+    return parameters
