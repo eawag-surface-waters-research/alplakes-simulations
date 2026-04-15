@@ -123,8 +123,7 @@ def clean_smooth_resample(parameters, start_date, end_date, log=logger, plot=Fal
                              df["y"], kind=resample, bounds_error=False, fill_value=np.nan)
                 df = pd.DataFrame({"ds": time, "y": f((time - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's'))})
 
-                df['y'] = df['y'].where(df['y'] < station[parameter_type]["max"], station[parameter_type]["max"])
-                df['y'] = df['y'].where(df['y'] > station[parameter_type]["min"], station[parameter_type]["min"])
+                df['y'] = df['y'].clip(lower=station[parameter_type]["min"], upper=station[parameter_type]["max"])
 
                 if plot:
                     plt.plot(df["ds"], df["y"])
