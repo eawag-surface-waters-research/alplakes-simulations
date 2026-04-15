@@ -97,18 +97,16 @@ def clean_smooth_resample(parameters, start_date, end_date, log=logger, plot=Fal
                 df["ds"] = pd.to_datetime(df["ds"], errors="coerce", utc=True)
                 df["y"] = pd.to_numeric(df["y"], errors="coerce")
                 df = df.dropna()
-                df['y'].where(df['y'] < station[parameter_type]["max"], station[parameter_type]["max"],
-                              inplace=True)
-                df['y'].where(df['y'] > station[parameter_type]["min"], station[parameter_type]["min"],
-                              inplace=True)
+                df['y'] = df['y'].where(df['y'] < station[parameter_type]["max"], station[parameter_type]["max"])
+                df['y'] = df['y'].where(df['y'] > station[parameter_type]["min"], station[parameter_type]["min"])
 
                 # Smooth
                 if "downsample" in station[parameter_type]:
                     df = df.set_index("ds").resample(station[parameter_type]["downsample"]).mean()
                     df = df.reset_index()
-                    f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind="linear", bounds_error=False,
-                                 fill_value=np.nan)
-                    df = pd.DataFrame({"ds": time, "y": f(time.astype('int') / 10 ** 6)})
+                    f = interp1d((pd.to_datetime(df["ds"], utc=True) - pd.Timestamp("1970-01-01", tz="UTC")).dt.total_seconds(),
+                                 df["y"], kind="linear", bounds_error=False, fill_value=np.nan)
+                    df = pd.DataFrame({"ds": time, "y": f((time - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's'))})
                 if "smooth" in station[parameter_type]:
                     df["y"] = df["y"].rolling(window=station[parameter_type]["smooth"]["window"],
                                               win_type='gaussian',
@@ -121,16 +119,12 @@ def clean_smooth_resample(parameters, start_date, end_date, log=logger, plot=Fal
                 resample = "linear"
                 if "resample" in station[parameter_type]:
                     resample = station[parameter_type]["resample"]
-                f = interp1d(df["ds"].astype(int) / 10 ** 9, df["y"], kind=resample, bounds_error=False,
-                             fill_value=np.nan)
-                df = pd.DataFrame({"ds": time, "y": f(time.astype('int') / 10 ** 6)})
+                f = interp1d((pd.to_datetime(df["ds"], utc=True) - pd.Timestamp("1970-01-01", tz="UTC")).dt.total_seconds(),
+                             df["y"], kind=resample, bounds_error=False, fill_value=np.nan)
+                df = pd.DataFrame({"ds": time, "y": f((time - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's'))})
 
-                df['y'].notnull().where(df['y'].notnull() < station[parameter_type]["max"],
-                                        station[parameter_type]["max"],
-                                        inplace=True)
-                df['y'].notnull().where(df['y'].notnull() > station[parameter_type]["min"],
-                                        station[parameter_type]["min"],
-                                        inplace=True)
+                df['y'] = df['y'].where(df['y'] < station[parameter_type]["max"], station[parameter_type]["max"])
+                df['y'] = df['y'].where(df['y'] > station[parameter_type]["min"], station[parameter_type]["min"])
 
                 if plot:
                     plt.plot(df["ds"], df["y"])

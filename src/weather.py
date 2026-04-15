@@ -41,7 +41,7 @@ def write_weather_data_to_file(time, var, lat, lng, gxx, gyy, system, properties
         warning("Lake grid area exceeds model weather area")
     with open(os.path.join(folder, properties["filename"]), "a") as f:
         for i in range(len(time)):
-            diff = datetime.fromtimestamp(int(time[i].astype('datetime64[s]').astype('int')), pytz.utc) - origin
+            diff = datetime.fromtimestamp(int((time[i].astype('datetime64[s]') - np.datetime64('1970-01-01T00:00:00', 's')) / np.timedelta64(1, 's')), pytz.utc) - origin
             hours = diff.total_seconds() / 3600
             time_str = "TIME = " + str(hours) + "0 hours since " + origin.strftime(
                 "%Y-%m-%d %H:%M:%S") + " +00:00"
