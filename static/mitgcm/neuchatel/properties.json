@@ -7,8 +7,14 @@
     "data": {
       "diffKzT": 1e-06,
       "viscC2smag": 0.7,
-      "viscAhGrid": 0.0125,
-      "diffKhT": 0.24
+      "viscAhGrid": 0.00015,
+      "diffKhT": 0.5
+    },
+    "data.exf": {
+      "cdrag_1": 0.00135,
+      "cdrag_2": 0.000071,
+      "cdrag_3": 0.0000382,
+      "bottomDragQuadratic": 0.001
     }
   }
 }
