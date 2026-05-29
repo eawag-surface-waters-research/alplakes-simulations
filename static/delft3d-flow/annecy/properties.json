@@ -1,0 +1,17 @@
+{
+  "grid": {
+    "minx": 277400,
+    "miny": 5074600,
+    "maxx": 284900,
+    "maxy": 5087600,
+    "dx": 500,
+    "dy": 500,
+    "system": "UTM",
+    "zone_letter": "T",
+    "zone_number": 32
+  },
+   "secchi" : {
+     "scaling": 1,
+     "fixed":  5.5
+   }
+}
