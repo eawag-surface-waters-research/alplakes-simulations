@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults, SWANGrid, read_delft3d_grd, read_delft3d_dep
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults, SWANGrid, read_delft3d_grd, read_delft3d_dep, delft3d_mesh_mask
 
 
 class Delft3D(object):
@@ -1080,23 +1080,19 @@ class SWAN(object):
                 points = np.column_stack([X[valid], Y[valid]])
                 values = bathy[valid]
                 xx, yy = np.meshgrid(self.grid.x, self.grid.y)
+                # griddata(linear) returns values across the whole convex hull of
+                # the lake nodes, which for a crescent-shaped lake (e.g. Geneva)
+                # floods the concave bay with spurious "water". Mask to the actual
+                # lake using the body-fitted Delft3D mesh footprint (correct at any
+                # SWAN resolution), then fill depths from the linear field, with
+                # nearest as a fallback at the hull edge.
+                inside = delft3d_mesh_mask(X, Y, xx, yy)
                 bathy_interp = griddata(points, values, (xx, yy), method='linear')
-
-                # griddata(linear) fills the whole convex hull of the lake nodes,
-                # which for a crescent-shaped lake (e.g. Geneva) floods the concave
-                # bay between its arms with spurious "water". Restrict the grid to
-                # cells that actually contain at least one Delft3D lake node; fill
-                # those from the linear field (nearest as a fallback at the hull
-                # edge) and flag everything else as land.
-                x_edges = self.grid.x0 + self.grid.dx * np.arange(self.grid.Nx + 1)
-                y_edges = self.grid.y0 + self.grid.dy * np.arange(self.grid.Ny + 1)
-                counts, _, _ = np.histogram2d(X[valid], Y[valid], bins=[x_edges, y_edges])
-                occupied = counts.T > 0
                 bathy_near = griddata(points, values, (xx, yy), method='nearest')
                 depth = np.where(np.isnan(bathy_interp), bathy_near, bathy_interp)
-                bathy_swan = np.where(occupied, depth, -999.0)
-                self.log.info("Interpolated bathymetry onto {}x{} regular grid ({} active cells)".format(
-                    self.grid.Ny, self.grid.Nx, int(occupied.sum())), indent=1)
+                bathy_swan = np.where(inside, depth, -999.0)
+                self.log.info("Interpolated bathymetry onto {}x{} regular grid ({} lake cells)".format(
+                    self.grid.Ny, self.grid.Nx, int(inside.sum())), indent=1)
             elif source_type == "mitgcm":
                 bathy_bin = os.path.join(source_dir, "grid", "bathy.bin")
                 self.log.info("Reading bathymetry from bathy.bin", indent=1)

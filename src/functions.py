@@ -915,6 +915,47 @@ def read_delft3d_dep(dep_path, Mx, My):
     return arr
 
 
+def delft3d_mesh_mask(X, Y, xq, yq):
+    """Boolean mask of query points that fall inside a Delft3D mesh footprint.
+
+    X, Y are the curvilinear grid node coordinates (shape (My, Mx), zeros at
+    inactive nodes). The mesh is body-fitted to the shoreline, so the union of
+    its cells is the true lake area, including concave coastlines. Testing query
+    points against this footprint avoids two failure modes: the convex hull of
+    the nodes (griddata) floods concave bays, while a "cell contains a node"
+    test leaves holes once the query grid is finer than the node spacing.
+
+    Args:
+        X, Y: node coordinate arrays, shape (My, Mx).
+        xq, yq: query coordinates (any matching shape) in the same system.
+
+    Returns:
+        Boolean ndarray shaped like xq, True where the point is inside the lake.
+    """
+    from matplotlib.path import Path
+    valid = (X != 0) | (Y != 0)
+    # A grid cell is part of the lake when all four of its corner nodes are valid.
+    cell = valid[:-1, :-1] & valid[:-1, 1:] & valid[1:, 1:] & valid[1:, :-1]
+    ii, jj = np.nonzero(cell)
+    if ii.size == 0:
+        raise ValueError("Delft3D mesh has no valid cells to build a footprint")
+    quad = np.stack([
+        np.stack([X[ii, jj],         Y[ii, jj]],         axis=1),
+        np.stack([X[ii, jj + 1],     Y[ii, jj + 1]],     axis=1),
+        np.stack([X[ii + 1, jj + 1], Y[ii + 1, jj + 1]], axis=1),
+        np.stack([X[ii + 1, jj],     Y[ii + 1, jj]],     axis=1),
+    ], axis=1)  # (Ncell, 4, 2)
+    # One compound Path holding every cell as a closed sub-polygon; a query point
+    # has nonzero winding only when it lies inside exactly one (non-overlapping)
+    # cell, so contains_points returns True across the whole lake and False in
+    # any island holes.
+    n = quad.shape[0]
+    verts = np.concatenate([quad, quad[:, :1, :]], axis=1).reshape(-1, 2)
+    codes = np.tile([Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY], n)
+    shape = np.asarray(xq).shape
+    pts = np.column_stack([np.asarray(xq).ravel(), np.asarray(yq).ravel()])
+    return Path(verts, codes).contains_points(pts).reshape(shape)
+
 
 def modify_arguments(param_name: str, values, file_path, wrap=9):
     """
