@@ -827,6 +827,8 @@ class SWAN(object):
         self.properties = {}
         self.simulation_dir = ""
         self.grid = None
+        self.restart_file = ""   # hotstart file the run is initialised from
+        self.hotstart = False    # True once a hotstart file has been collected
         self._grid_source_data = {}  # raw grid data passed from load_grid to load_bathymetry
 
         if "log" in params and params["log"]:
@@ -844,6 +846,7 @@ class SWAN(object):
         self.initialise_simulation_directory()
         self.copy_static_data()
         self.load_properties()
+        self.collect_restart_file()
         self.load_grid()
         self.load_bathymetry()
         self.weather_data_files()
@@ -852,6 +855,7 @@ class SWAN(object):
             self.upload_data()
         if self.params["run"]:
             self.run_simulation()
+            self.convert_output()
         return self.simulation_dir
 
     def initialise_simulation_directory(self, remove=True):
@@ -905,6 +909,48 @@ class SWAN(object):
             self.log.error()
             raise
 
+    def collect_restart_file(self, region="eu-central-1"):
+        try:
+            self.log.begin_stage("Collecting hotstart file.")
+            # A run starting at date D is initialised from the hotfile a previous
+            # run wrote when it ended at D (restart_<D>.hot). Hotstart is optional:
+            # if none is found the run cold-starts with INIT DEFAULT.
+            self.restart_file = "restart_{}.hot".format(self.params["start"].strftime("%Y%m%d"))
+            dst = os.path.join(self.simulation_dir, self.restart_file)
+            components = self.params["model"].split("/")
+
+            if self.params["restart"]:
+                self.log.info("Copying hotstart file from local storage.", indent=1)
+                if not os.path.isfile(self.params["restart"]):
+                    raise ValueError("Unable to locate hotstart file: {}".format(self.params["restart"]))
+                shutil.copyfile(self.params["restart"], dst)
+                self.hotstart = True
+                self.log.info("Using hotstart {}".format(self.restart_file), indent=1)
+                self.log.end_stage()
+                return
+
+            if not self.params["bucket"]:
+                self.log.info("No bucket or local hotstart file; cold start (INIT DEFAULT).", indent=1)
+                self.log.end_stage()
+                return
+
+            self.log.info("Downloading hotstart file from remote storage.", indent=1)
+            bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
+            url = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
+            self.log.info("File location: {}".format(url), indent=2)
+            status_code = download_file(url, dst)
+            if status_code == 200:
+                self.hotstart = True
+                self.log.info("Successfully downloaded hotstart file.", indent=2)
+            elif status_code == 403:
+                self.log.warning("Hotstart file doesn't exist on server; cold start (INIT DEFAULT).", indent=1)
+            else:
+                raise ValueError("Unable to download hotstart file, please check your internet connection.")
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
     def load_grid(self):
         try:
             self.log.begin_stage("Loading SWAN grid.")
@@ -944,7 +990,8 @@ class SWAN(object):
         x_valid = X[valid]
         y_valid = Y[valid]
 
-        # Build a regular bounding-box grid for wind INPGRID REGULAR
+        # Build a regular bounding-box computational grid; the Delft3D bathymetry
+        # is interpolated onto it in load_bathymetry().
         resolution = float(grid_props.get("resolution", 500))
         x0 = float(np.floor(x_valid.min() / resolution) * resolution)
         y0 = float(np.floor(y_valid.min() / resolution) * resolution)
@@ -1034,8 +1081,22 @@ class SWAN(object):
                 values = bathy[valid]
                 xx, yy = np.meshgrid(self.grid.x, self.grid.y)
                 bathy_interp = griddata(points, values, (xx, yy), method='linear')
-                bathy_swan = np.where(np.isnan(bathy_interp), -999.0, bathy_interp)
-                self.log.info("Interpolated bathymetry onto {}x{} regular grid".format(self.grid.Ny, self.grid.Nx), indent=1)
+
+                # griddata(linear) fills the whole convex hull of the lake nodes,
+                # which for a crescent-shaped lake (e.g. Geneva) floods the concave
+                # bay between its arms with spurious "water". Restrict the grid to
+                # cells that actually contain at least one Delft3D lake node; fill
+                # those from the linear field (nearest as a fallback at the hull
+                # edge) and flag everything else as land.
+                x_edges = self.grid.x0 + self.grid.dx * np.arange(self.grid.Nx + 1)
+                y_edges = self.grid.y0 + self.grid.dy * np.arange(self.grid.Ny + 1)
+                counts, _, _ = np.histogram2d(X[valid], Y[valid], bins=[x_edges, y_edges])
+                occupied = counts.T > 0
+                bathy_near = griddata(points, values, (xx, yy), method='nearest')
+                depth = np.where(np.isnan(bathy_interp), bathy_near, bathy_interp)
+                bathy_swan = np.where(occupied, depth, -999.0)
+                self.log.info("Interpolated bathymetry onto {}x{} regular grid ({} active cells)".format(
+                    self.grid.Ny, self.grid.Nx, int(occupied.sum())), indent=1)
             elif source_type == "mitgcm":
                 bathy_bin = os.path.join(source_dir, "grid", "bathy.bin")
                 self.log.info("Reading bathymetry from bathy.bin", indent=1)
@@ -1126,8 +1187,8 @@ class SWAN(object):
                      xlenc=xlenc, ylenc=ylenc, mxc=mxc, myc=myc,
                      dx=self.grid.dx, dy=self.grid.dy,
                      mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
-            # WIND is a vector quantity: a single READINP WIND reads both the
-            # x- and y-component blocks per timestep from one file (wind.wnd).
+            # WIND is a vector quantity: a single READINP WIND reads the x- then
+            # y-component block per timestep from one file (wind.wnd).
             wind_inpgrid = (
                 "INPGRID WIND REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
                 "READINP WIND 1 'wind.wnd' 3 0 FREE"
@@ -1140,6 +1201,34 @@ class SWAN(object):
                 breaking_line = "BREAKING CONSTANT {alpha} {gamma}".format(
                     alpha=ph["alpha"], gamma=ph["gamma"])
 
+            # Initial condition: hotstart from a collected restart file, else cold.
+            # UNFORMATTED must match how HOTFILE wrote it (binary).
+            if self.hotstart:
+                init_line = "INITIAL HOTSTART '{}' UNFORMATTED".format(self.restart_file)
+            else:
+                init_line = "INIT DEFAULT"
+
+            # SWAN writes a hotfile only at the end of a COMPUTE, so to emit
+            # restart files at a fixed interval the run is split into segments
+            # (consecutive COMPUTE commands continue from the previous state).
+            # restart_interval is in days; absent -> single COMPUTE, no hotfile.
+            restart_interval = self.properties.get("restart_interval")
+            if restart_interval:
+                lines = []
+                step = timedelta(days=float(restart_interval))
+                t0 = self.params["start"]
+                while t0 < self.params["end"]:
+                    t1 = min(t0 + step, self.params["end"])
+                    lines.append("COMPUTE NONSTAT {} {} SEC {}".format(
+                        t0.strftime("%Y%m%d.%H%M%S"), ts, t1.strftime("%Y%m%d.%H%M%S")))
+                    lines.append("HOTFILE 'restart_{}.hot' UNFORMATTED".format(t1.strftime("%Y%m%d")))
+                    t0 = t1
+                compute_block = "\n".join(lines)
+                self.log.info("Restart interval {} day(s): {} compute segment(s).".format(
+                    restart_interval, len(lines) // 2), indent=1)
+            else:
+                compute_block = "COMPUTE NONSTAT {} {} SEC {}".format(start_str, ts, end_str)
+
             replacements = {
                 "!project_name!": lake_name,
                 "!cgrid_block!": cgrid_block,
@@ -1148,9 +1237,9 @@ class SWAN(object):
                 "!whitecap!": "WCAPPING {}".format(ph["whitecap"]),
                 "!friction!": "FRICTION {} {}".format(ph["fric"], ph["fric_coef"]),
                 "!breaking!": breaking_line,
+                "!init!": init_line,
+                "!compute_block!": compute_block,
                 "!start!": start_str,
-                "!end!": end_str,
-                "!timestep!": str(ts),
                 "!output_vars!": " ".join(op["variables"]),
                 "!output_dt!": str(int(op.get("frequency", ts))),
             }
@@ -1214,6 +1303,81 @@ class SWAN(object):
                 raise RuntimeError("Subprocess failed with the following error: {}".format(error))
             elif error:
                 raise RuntimeError("Simulation failed check the logs for more information.")
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def convert_output(self):
+        try:
+            self.log.begin_stage("Converting SWAN output to NetCDF.")
+            block_path = os.path.join(self.simulation_dir, "swan_block.dat")
+            if not os.path.isfile(block_path):
+                raise ValueError("SWAN block output 'swan_block.dat' not found; the run may not have completed.")
+
+            variables = self.properties["output"]["variables"]
+            nvar = len(variables)
+            Ny, Nx = self.grid.Ny, self.grid.Nx
+
+            with open(block_path) as f:
+                values = np.array(f.read().split(), dtype=float)
+
+            block = Ny * Nx * nvar
+            if values.size % block != 0:
+                raise ValueError(
+                    "SWAN block output has {} values, not divisible by Ny*Nx*nvar ({}); "
+                    "vector output quantities are not supported.".format(values.size, block))
+            nt = values.size // block
+
+            # LAY-OUT 3 writes each field row-by-row in the same (south-first)
+            # orientation as the input grids, so it maps straight onto lat_grid.
+            data = values.reshape(nt, nvar, Ny, Nx)
+
+            # SWAN flags inactive/land points with an exception value: -9 for most
+            # quantities and -999 for directions. Replace both with NaN.
+            data = np.where(np.isclose(data, -9.0) | np.isclose(data, -999.0), np.nan, data)
+
+            freq = int(self.properties["output"].get("frequency", int(self.properties["timestep"])))
+            times = [self.params["start"] + timedelta(seconds=freq * k) for k in range(nt)]
+
+            def write_netcdf(sel, filename):
+                ds = xr.Dataset(
+                    data_vars={name: (("time", "eta", "xi"), data[sel, i, :, :])
+                               for i, name in enumerate(variables)},
+                    coords={
+                        "time": ("time", np.array([times[k] for k in sel], dtype="datetime64[ns]")),
+                        "lat": (("eta", "xi"), self.grid.lat_grid),
+                        "lon": (("eta", "xi"), self.grid.lon_grid),
+                    },
+                    attrs={
+                        "source": "SWAN {}".format(getattr(self, "version", "")),
+                        "lake": self.params["model"].split("/")[1],
+                    },
+                )
+                ds.to_netcdf(os.path.join(self.simulation_dir, filename))
+                self.log.info("Wrote {} timesteps to {}".format(len(sel), filename), indent=1)
+
+            # Split the output to match the hotfile/restart segments, named by
+            # the segment start date; otherwise write a single output.nc.
+            restart_interval = self.properties.get("restart_interval")
+            if restart_interval:
+                step = timedelta(days=float(restart_interval))
+                seg_starts = []
+                t0 = self.params["start"]
+                while t0 < self.params["end"]:
+                    seg_starts.append(t0)
+                    t0 = min(t0 + step, self.params["end"])
+                for s, seg_start in enumerate(seg_starts):
+                    seg_end = seg_starts[s + 1] if s + 1 < len(seg_starts) else self.params["end"]
+                    last = s + 1 == len(seg_starts)
+                    sel = [k for k, t in enumerate(times)
+                           if seg_start <= t < seg_end or (last and t == seg_end)]
+                    if sel:
+                        write_netcdf(sel, "output_{}.nc".format(seg_start.strftime("%Y%m%d")))
+            else:
+                write_netcdf(list(range(nt)), "output.nc")
+
+            os.remove(block_path)
             self.log.end_stage()
         except Exception as e:
             self.log.error()

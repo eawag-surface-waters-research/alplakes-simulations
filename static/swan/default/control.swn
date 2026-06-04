@@ -18,7 +18,7 @@ $ --- WIND FORCING ---
 !wind_inpgrid!
 $
 $ --- INITIAL CONDITIONS ---
-INIT DEFAULT
+!init!
 $
 $ --- PHYSICS ---
 !gen!
@@ -30,9 +30,12 @@ $ --- NUMERICS ---
 PROP BSBT
 $
 $ --- OUTPUT ---
-BLOCK 'COMPGRID' NOHEAD 'output.nc' LAY-OUT 3 !output_vars! OUTPUT !start! !output_dt! SEC
+$ The SWAN build has no NetCDF support, so this writes an ASCII block dump
+$ (swan_block.dat); convert_output() turns it into a real NetCDF (output.nc).
+BLOCK 'COMPGRID' NOHEAD 'swan_block.dat' LAY-OUT 3 !output_vars! OUTPUT !start! !output_dt! SEC
 $
 $ --- TIME CONTROL ---
-COMPUTE NONSTAT !start! !timestep! SEC !end!
+$ Single COMPUTE, or one COMPUTE per restart_interval each writing a hotfile.
+!compute_block!
 $
 STOP

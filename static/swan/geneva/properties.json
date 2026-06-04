@@ -21,6 +21,7 @@
     "gamma": 0.73
   },
   "timestep": 1800,
+  "restart_interval": 7,
   "output": {
     "variables": ["HS", "PDIR", "TM01"],
     "frequency": 3600
