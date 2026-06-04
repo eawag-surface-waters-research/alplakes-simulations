@@ -1078,11 +1078,12 @@ class SWAN(object):
 
             self.log.info("Interpolating U wind to SWAN grid.", indent=1)
             u_data = weather.weather_files_to_grid(weather_folder, 'U', self.params["start"], self.params["end"], self.grid, 1, False)
-            weather.write_swan_wind(os.path.join(self.simulation_dir, "wind_u.wnd"), u_data)
 
             self.log.info("Interpolating V wind to SWAN grid.", indent=1)
             v_data = weather.weather_files_to_grid(weather_folder, 'V', self.params["start"], self.params["end"], self.grid, 1, False)
-            weather.write_swan_wind(os.path.join(self.simulation_dir, "wind_v.wnd"), v_data)
+
+            self.log.info("Writing vector wind field to wind.wnd.", indent=1)
+            weather.write_swan_wind(os.path.join(self.simulation_dir, "wind.wnd"), u_data, v_data)
 
             shutil.rmtree(weather_folder)
             self.log.end_stage()
@@ -1116,16 +1117,16 @@ class SWAN(object):
             cgrid_block = (
                 "CGRID REGULAR {x0} {y0} {alpha} {xlenc} {ylenc} {mxc} {myc} CIRCLE {mdc} {flow} {fhigh} {msc}\n"
                 "INPGRID BOTTOM REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} EXC -999\n"
-                "READINP BOTTOM 1 'bottom.bot' 1 0 FREE"
+                "READINP BOTTOM 1 'bottom.bot' 3 0 FREE"
             ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
                      xlenc=xlenc, ylenc=ylenc, mxc=mxc, myc=myc,
                      dx=self.grid.dx, dy=self.grid.dy,
                      mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
+            # WIND is a vector quantity: a single READINP WIND reads both the
+            # x- and y-component blocks per timestep from one file (wind.wnd).
             wind_inpgrid = (
-                "INPGRID WINDX REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                "READINP WINDX 1 'wind_u.wnd' 1 0 FREE\n"
-                "INPGRID WINDY REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
-                "READINP WINDY 1 'wind_v.wnd' 1 0 FREE"
+                "INPGRID WIND REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
+                "READINP WIND 1 'wind.wnd' 3 0 FREE"
             ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
                      mxc=mxc, myc=myc, dx=self.grid.dx, dy=self.grid.dy,
                      tbegin=start_str, dt=wind_dt, tend=end_str)
