@@ -90,9 +90,10 @@ class Delft3D(object):
             self.log.begin_stage("Copying static data to simulation folder.")
             parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
             static = os.path.join(parent_dir, "static", self.params["model"])
-            files = copy_tree(static, self.simulation_dir)
-            for file in files:
-                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=1)
+            shutil.copytree(static, self.simulation_dir, dirs_exist_ok=True)
+            for root, _, filenames in os.walk(static):
+                for file in filenames:
+                    self.log.info("Copied {} to simulation folder.".format(file), indent=1)
             self.log.end_stage()
         except Exception as e:
             self.log.error()
@@ -471,14 +472,16 @@ class MitGCM(object):
             parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
             self.log.info("Copying default files to simulation folder.", indent=1)
             default = os.path.join(parent_dir, "static", self.params["model"].split("/")[0], "default")
-            files = copy_tree(default, self.simulation_dir)
-            for file in files:
-                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            shutil.copytree(default, self.simulation_dir, dirs_exist_ok=True)
+            for root, _, filenames in os.walk(default):
+                for file in filenames:
+                    self.log.info("Copied {} to simulation folder.".format(file), indent=2)
             self.log.info("Copying model files to simulation folder.", indent=1)
             model = os.path.join(parent_dir, "static", self.params["model"])
-            files = copy_tree(model, self.simulation_dir)
-            for file in files:
-                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            shutil.copytree(model, self.simulation_dir, dirs_exist_ok=True)
+            for root, _, filenames in os.walk(model):
+                for file in filenames:
+                    self.log.info("Copied {} to simulation folder.".format(file), indent=2)
             os.makedirs(os.path.join(self.simulation_dir, "run"), exist_ok=True)
             self.log.end_stage()
         except Exception as e:
@@ -791,6 +794,7 @@ class MitGCM(object):
 
             self.log.info("Running simulation as a subprocess.", indent=1)
             process = subprocess.Popen(["docker", "run",
+                                        "--user", "{}:{}".format(os.getuid(), os.getgid()),
                                         "-v", "{}:/simulation/binary_data".format(os.path.join(self.simulation_dir, "binary_data")),
                                         "-v", "{}:/simulation/run_config".format(os.path.join(self.simulation_dir, "run_config")),
                                         "-v", "{}:/simulation/run".format(os.path.join(self.simulation_dir, "run")),

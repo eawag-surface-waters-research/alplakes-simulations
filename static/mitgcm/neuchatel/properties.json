@@ -1,0 +1,20 @@
+{
+  "timestep": 15,
+  "endian_type": ">f8",
+  "secchi": [12,16,14,9,8,7,5,3,4,8,10,11],
+  "a_lw": 1,
+  "overwrite": {
+    "data": {
+      "diffKzT": 1e-06,
+      "viscC2smag": 0.7,
+      "viscAhGrid": 0.00015,
+      "diffKhT": 0.5,
+      "bottomDragQuadratic": 0.001
+    },
+    "data.exf": {
+      "cdrag_1": 0.00135,
+      "cdrag_2": 0.000071,
+      "cdrag_3": 0.0000382
+    }
+  }
+}

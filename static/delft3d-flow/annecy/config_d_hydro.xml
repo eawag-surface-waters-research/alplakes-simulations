@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<deltaresHydro xmlns="http://schemas.deltares.nl/deltaresHydro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.deltares.nl/deltaresHydro http://content.oss.deltares.nl/schemas/d_hydro-1.00.xsd">
+    <documentation>
+        File created by    : Deltares, create_config_xml.tcl, Version 1.00
+        File creation date : 06 March 2013, 18:09:37
+        File version       : 1.00
+    </documentation>
+    <control>
+        <sequence>
+            <start>simulation</start>
+        </sequence>
+    </control>
+    <flow2D3D name="simulation">
+        <library>flow2d3d</library>
+        <mdfFile>Simulation_Web.mdf</mdfFile>
+    </flow2D3D>
+</deltaresHydro>

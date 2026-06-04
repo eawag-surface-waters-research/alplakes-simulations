@@ -1,0 +1,160 @@
+Ident  = #Delft3D-FLOW 3.59.01.77476#
+Commnt =
+Runtxt = #Lake Annecy#                 
+Filcco = #annecy_grid.grd#
+Anglat =   4.5800000e+01
+Grdang =   0.0000000e+00
+Filgrd = #annecy_grid_enclosure.enc#
+Fildep = #annecy_depths.dep#
+MNKmax = 117 194 60
+
+Zmodel = #Y#
+Zbot   = -70.0
+Ztop   = 0.0
+
+Thick  =    7.4812916e+00
+            6.9271218e+00
+            6.4140017e+00
+            5.9388904e+00
+            5.4989726e+00
+            5.0916413e+00
+            4.7144827e+00
+            4.3652618e+00
+            4.0419090e+00
+            3.7425084e+00
+            3.4652855e+00
+            3.2085977e+00
+            2.9709238e+00
+            2.7508554e+00
+            2.5470883e+00
+            2.3584151e+00
+            2.1837177e+00
+            2.0219608e+00
+            1.8721859e+00
+            1.7335055e+00
+            1.6050977e+00
+            1.4862016e+00
+            1.3761126e+00
+            1.2741783e+00
+            1.1797947e+00
+            1.0924025e+00
+            1.0114838e+00
+            9.3655909e-01
+            8.6718434e-01
+            8.0294846e-01
+            7.4347080e-01
+            6.8839889e-01
+            6.3740638e-01
+            5.9019109e-01
+            5.4647323e-01
+            5.0599373e-01
+            4.6851272e-01
+            4.3380807e-01
+            4.0167414e-01
+            3.7192050e-01
+            3.4437083e-01
+            3.1886188e-01
+            2.9524248e-01
+            2.7337267e-01
+            2.5312284e-01
+            2.3437300e-01
+            2.1701204e-01
+            2.0093707e-01
+            1.8605285e-01
+            1.7227115e-01
+            1.5951033e-01
+            1.4769475e-01
+            1.3675440e-01
+            1.2662444e-01
+            1.1724485e-01
+            1.0856005e-01
+            1.0051856e-01
+            9.3072744e-02
+            8.6178466e-02
+            7.9794876e-02
+
+Itdate = #2008-03-01#
+Tunit  = #M#
+Tstart =   0.0000000e+00
+Tstop  =   5.2416000e+05
+Dt     = 1
+Tzone  = 0
+
+Sub1   = # TW #
+Sub2   = #   #
+
+Wnsvwp = #N#
+Wndint = #N#
+
+Filwp  = #Pressure.amp#
+Filscc= #Secchi.scc#
+Filwu  = #WindU.amu#
+Filwv  = #WindV.amv#
+Filws  = #ShortwaveFlux.ams#
+Filwt  = #Temperature.amt#
+Filwr  = #RelativeHumidity.amr#
+Filwc  = #CloudCoverage.amc#
+
+
+Temint = #N#
+Restid =  #Simulation_Web_rst.000000#
+Zeta0  =   0.0000000e+00
+Commnt =                  
+Commnt =                 no. open boundaries: 0
+Commnt =                  
+Ag     =   9.8100000e+00
+Rhow   =   1.0000000e+03
+Tempw  =   1.5000000e+01
+Salw   =   5.0000000e-01
+Wstres =   2.9912571e-03   5.0000000e-01   6.7983117e-04   4.5000000e+00   1.3596623e-03   1.0000000e+01
+Rhoa   =   1.0000000e+00
+Betac  =   5.0000000e-01
+Equili = #N#
+Tkemod = #K-epsilon#
+Ktemp  = 5
+Stantn =   4.0000000e-03
+Dalton =   3.0000000e-03
+
+
+Roumet= #C#
+Ccofu =    76.0000
+Ccofv =    76.0000
+Xlo    =   1.2400000e-03
+Vicouv =   3.0000000e-01
+Dicouv =   2.7402718e-01
+cFrCon =   2.3498638e-04
+Htur2d =  #N#
+Vicoww =   1.0000000e-004
+Dicoww =   1.0000000e-006
+Irov   = 0
+
+Iter   = 2
+Dryflp = #N#
+Dpsopt = #MAX#
+Dpuopt = #MIN#
+Dryflc =   1.0000000e-01
+Dco    =  -9.9900000e+02
+Tlfsmo =   6.0000000e+01
+ThetQH =   0.0000000e+00
+
+Forfuv = #Y#
+Forfww = #Y#
+Sigcor = #N#
+Trasol = #Cyclic-method#
+Momsol = #Cyclic#
+
+Commnt =                 no. discharges: 0
+Commnt =                 no. observation points: 3
+Filsta = #annecy_observation_points.obs#
+
+
+Flmap  =   0.0000000e+00 180.0   5.2416000e+05
+Flhis  =   0.0000000e+00 180.0   5.2416000e+05
+Flpp   =   0.0000000e+00 0.0     5.2416000e+05
+Flrst  = 10080
+
+Online = #N#
+Commnt =
+
+ncFormat = 4
+FlNcdf = #map#

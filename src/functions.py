@@ -49,12 +49,13 @@ def convert_to_unit(time, units):
 
 
 def convert_from_unit(time, units):
+    time = float(time)
     if units == "seconds since 2008-03-01 00:00:00":
-        return datetime.utcfromtimestamp(time + (
+        return datetime.fromtimestamp(time + (
                     datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(
-                tzinfo=timezone.utc)).total_seconds())
+                tzinfo=timezone.utc)).total_seconds(), timezone.utc).replace(tzinfo=None)
     elif units == "seconds since 1970-01-01 00:00:00":
-        return datetime.utcfromtimestamp(time)
+        return datetime.fromtimestamp(time, timezone.utc).replace(tzinfo=None)
     else:
         raise ValueError("Unrecognised time unit.")
 
@@ -1122,7 +1123,7 @@ def extract_data_from_output_file(file_path, variable, pattern, depth=1):
             pattern[-2] = depth_index
         data = np.array(nc.variables[variable][pattern])
         data[data == -999] = np.nan
-        timestamps = [datetime.utcfromtimestamp(t + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds()).replace(tzinfo=timezone.utc) for t in times]
+        timestamps = [datetime.fromtimestamp(float(t) + (datetime(2008, 3, 1).replace(tzinfo=timezone.utc) - datetime(1970, 1, 1).replace(tzinfo=timezone.utc)).total_seconds(), tz=timezone.utc) for t in times]
         return timestamps, data
 
 
@@ -1136,7 +1137,7 @@ def plot_input_heatmaps(inputs, folder):
             fig.suptitle(inputs[0]["timestamps"][i])
             for j in range(len(inputs)):
                 plt.subplot(3, 3, j + 1)
-                plt.imshow(inputs[j]["data"][i], cmap='coolwarm', interpolation='nearest')
+                plt.imshow(inputs[j]["data"][min(i, len(inputs[j]["data"]) - 1)], cmap='coolwarm', interpolation='nearest')
                 plt.title(inputs[j]["file"].split(".")[0])
                 plt.colorbar()
             plt.tight_layout()
@@ -1314,4 +1315,32 @@ def extract_data_outputs_delft3dflow(folder):
         timestamps, data = extract_data_from_output_file(output_file, p["variable"], p["pattern"])
         p["timestamps"] = timestamps
         p["data"] = data
+    return parameters
+
+
+def extract_data_outputs_mitgcm(folder):
+    postprocess_folder = os.path.join(folder, "postprocess")
+    if not os.path.exists(postprocess_folder):
+        raise ValueError("No postprocess folder found.")
+    files = sorted([os.path.join(postprocess_folder, f) for f in os.listdir(postprocess_folder) if f.endswith(".nc")])
+    if not files:
+        raise ValueError("No output files found in postprocess folder.")
+    parameters = [
+        {"name": "Temperature", "variable": "t"},
+        {"name": "Velocity U", "variable": "u"},
+        {"name": "Velocity V", "variable": "v"},
+    ]
+    all_timestamps = []
+    all_data = {p["variable"]: [] for p in parameters}
+    for file in files:
+        with netCDF4.Dataset(file, "r") as nc:
+            times = np.array(nc.variables["time"][:])
+            all_timestamps.extend([datetime.utcfromtimestamp(float(t)) for t in times])
+            for p in parameters:
+                data = np.array(nc.variables[p["variable"]][:, 0, :, :])
+                data[data == -999.0] = np.nan
+                all_data[p["variable"]].append(data)
+    for p in parameters:
+        p["timestamps"] = all_timestamps
+        p["data"] = np.concatenate(all_data[p["variable"]], axis=0)
     return parameters

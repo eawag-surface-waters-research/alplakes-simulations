@@ -4,6 +4,7 @@ import netCDF4
 import pylake
 import argparse
 import numpy as np
+import pandas as pd
 import xarray as xr
 from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta, SU
@@ -135,7 +136,7 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999
 
     week_groups = {}
     for i, dt in enumerate(full_time):
-        sunday = dt.astype('M8[ms]').astype(datetime) + relativedelta(weekday=SU(-1))
+        sunday = pd.Timestamp(dt).to_pydatetime() + relativedelta(weekday=SU(-1))
         if sunday.strftime("%Y%m%d") in week_groups:
             week_groups[sunday.strftime("%Y%m%d")].append(i)
         else:
