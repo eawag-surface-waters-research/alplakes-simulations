@@ -14,6 +14,10 @@ def main(folder, slice=False, heatmaps=False):
     elif "_mitgcm_" in folder:
         extract_inputs = func.extract_data_inputs_mitgcm
         extract_outputs = func.extract_data_outputs_mitgcm
+
+    elif "_swan_" in folder:
+        extract_inputs = func.extract_data_inputs_swan
+        extract_outputs = func.extract_data_outputs_swan
     else:
         raise ValueError("Unable to recognise model type.")
 

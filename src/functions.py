@@ -1385,3 +1385,78 @@ def extract_data_outputs_mitgcm(folder):
         p["timestamps"] = all_timestamps
         p["data"] = np.concatenate(all_data[p["variable"]], axis=0)
     return parameters
+
+
+def swan_wind_metadata(control_path):
+    """Read the wind start time and timestep (seconds) from a SWAN control file."""
+    with open(control_path, 'r') as f:
+        for line in f:
+            s = line.strip()
+            if s.startswith("INPGRID WIND") and "NONSTATIONARY" in s:
+                parts = s.split()
+                k = parts.index("NONSTATIONARY")
+                return datetime.strptime(parts[k + 1], "%Y%m%d.%H%M%S"), int(parts[k + 2])
+    raise ValueError("Could not find a nonstationary wind INPGRID in {}".format(control_path))
+
+
+def swan_grid_latlng(folder):
+    """Return (lat_grid, lng_grid) of the SWAN grid from an output NetCDF (north-up), or None."""
+    ncs = sorted([f for f in os.listdir(folder) if f.startswith("output") and f.endswith(".nc")])
+    if not ncs:
+        return None
+    with xr.open_dataset(os.path.join(folder, ncs[0])) as ds:
+        return ds["lat"].values[::-1, :], ds["lon"].values[::-1, :]
+
+
+def extract_data_inputs_swan(folder, slice):
+    # Grid shape from the bathymetry; wind times from the control file.
+    bathy = np.loadtxt(os.path.join(folder, "bottom.bot"))
+    ny, nx = bathy.shape
+    start, dt = swan_wind_metadata(os.path.join(folder, "control.swn"))
+
+    # wind.wnd holds, per timestep, the u-component block then the v-component
+    # block (each ny rows of nx values), written south-first; flip to north-up.
+    wind = np.loadtxt(os.path.join(folder, "wind.wnd"))
+    ntime = wind.shape[0] // (2 * ny)
+    wind = wind[:ntime * 2 * ny].reshape(ntime, 2, ny, nx)
+    u = wind[:, 0, ::-1, :]
+    v = wind[:, 1, ::-1, :]
+    speed = np.sqrt(u ** 2 + v ** 2)
+    timestamps = [start + timedelta(seconds=dt * i) for i in range(ntime)]
+
+    slice_index = False
+    if slice:
+        latlng = swan_grid_latlng(folder)
+        if latlng is None:
+            print("No SWAN output NetCDF found for slice coordinates; skipping point sampling.")
+        else:
+            lat, lng = [float(x) for x in slice.split(",")]
+            i, j, distance = closest_index_2d(lat, lng, latlng[0], latlng[1])
+            print("Extracting point data {}m from requested location".format(round(distance)))
+            slice_index = {"y": i, "x": j}
+
+    return [
+        {"file": "WindU.wnd", "timestamps": timestamps, "data": u, "slice_index": slice_index},
+        {"file": "WindV.wnd", "timestamps": timestamps, "data": v, "slice_index": slice_index},
+        {"file": "WindSpeed", "timestamps": timestamps, "data": speed, "slice_index": slice_index},
+    ]
+
+
+def extract_data_outputs_swan(folder):
+    # Output is one NetCDF per restart segment (output_<start>.nc); concatenate
+    # them in time. Land cells are already NaN. Flip to north-up for display.
+    ncs = sorted([f for f in os.listdir(folder) if f.startswith("output") and f.endswith(".nc")])
+    if not ncs:
+        raise ValueError("No SWAN output NetCDF (output*.nc) found in {}".format(folder))
+    labels = {"HS": "Sig. wave height (m)", "TM01": "Mean period (s)", "PDIR": "Direction (deg)"}
+    with xr.open_dataset(os.path.join(folder, ncs[0])) as ds0:
+        variables = list(ds0.data_vars)
+    timestamps = []
+    collected = {v: [] for v in variables}
+    for f in ncs:
+        with xr.open_dataset(os.path.join(folder, f)) as ds:
+            timestamps.extend([pd.Timestamp(t).to_pydatetime() for t in ds["time"].values])
+            for v in variables:
+                collected[v].append(ds[v].values[:, ::-1, :])
+    return [{"name": labels.get(v, v), "variable": v, "timestamps": timestamps,
+             "data": np.concatenate(collected[v], axis=0)} for v in variables]

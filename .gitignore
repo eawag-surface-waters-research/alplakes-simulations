@@ -7,6 +7,8 @@ runs/*
 !runs/.gitkeep
 notebooks/.ipynb_checkpoints
 notebooks/example.nc
+notebooks/__pycache__
+calibration
 credentials.json
 src/test.py
 externaldata
