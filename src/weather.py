@@ -174,3 +174,40 @@ def write_binary(filename, data, endian_type=">f8"):
     fid = open(filename, 'wb')
     data.tofile(fid)
     fid.close()
+
+
+def write_swan_wind(filepath, u_data, v_data):
+    """Write a vector wind field (both components) to SWAN ASCII format.
+
+    WIND is a vectorial input quantity in SWAN: a single ``READINP WIND`` reads
+    two consecutive blocks per timestep — first the x-component field, then the
+    y-component field. Supplying the components as separate scalar files makes
+    SWAN consume two timesteps per wind interval and abort with "Unexpected end
+    of file" at the midpoint of the run, so both components must share one file.
+
+    With idla=3 and FREE format SWAN reads each block row-by-row, Y ascending
+    (south to north). Each timestep therefore occupies 2*Ny consecutive rows of
+    Nx space-separated values (Ny rows of u, then Ny rows of v). No timestamp
+    headers — timing is defined entirely by the INPGRID NONSTATIONARY clause in
+    the control file.
+
+    Args:
+        filepath: Output file path (e.g. wind.wnd)
+        u_data: xarray.DataArray of the x-component, dims (T, Y, X)
+        v_data: xarray.DataArray of the y-component, dims (T, Y, X)
+    """
+    def _oriented(data):
+        arr = data.to_numpy()
+        y_coords = data.coords['Y'].values
+        if len(y_coords) > 1 and y_coords[0] > y_coords[-1]:
+            arr = arr[:, ::-1, :]
+        return arr
+
+    u = _oriented(u_data)
+    v = _oriented(v_data)
+    with open(filepath, 'w') as f:
+        for t in range(u.shape[0]):
+            for block in (u, v):
+                for j in range(block.shape[1]):
+                    f.write(' '.join('{:.4f}'.format(val) for val in block[t, j, :]))
+                    f.write('\n')

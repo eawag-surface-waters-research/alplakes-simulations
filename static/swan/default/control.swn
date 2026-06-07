@@ -1,0 +1,41 @@
+PROJ '!project_name!' 'R1'
+
+TEST 10 0
+
+$ Use Cartesian convention for wind and wave direction (the directions the waves are travelling)
+SET CARTESIAN
+
+$ Use mode nonstationary and 2D
+MODE NONST TWOD
+
+$ Coordinates are cartesian (m) rather than spherical (deg)
+COORDINATES CARTESIAN
+
+$ Computational grid definition
+!cgrid_block!
+
+$ --- WIND FORCING ---
+!wind_inpgrid!
+$
+$ --- INITIAL CONDITIONS ---
+!init!
+$
+$ --- PHYSICS ---
+!gen!
+!whitecap!
+!friction!
+!breaking!
+$
+$ --- NUMERICS ---
+PROP BSBT
+$
+$ --- OUTPUT ---
+$ The SWAN build has no NetCDF support, so this writes an ASCII block dump
+$ (swan_block.dat); convert_output() turns it into a real NetCDF (output.nc).
+BLOCK 'COMPGRID' NOHEAD 'swan_block.dat' LAY-OUT 3 !output_vars! OUTPUT !start! !output_dt! SEC
+$
+$ --- TIME CONTROL ---
+$ Single COMPUTE, or one COMPUTE per restart_interval each writing a hotfile.
+!compute_block!
+$
+STOP

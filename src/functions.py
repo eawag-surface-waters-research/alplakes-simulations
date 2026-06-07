@@ -799,6 +799,164 @@ def get_mitgcm_grid(path_folder_grid: str) -> MitgcmGrid:
     grid.load_from_path(path_folder_grid)
     return grid
 
+
+class SWANGrid:
+    """Regular rectangular grid representation for SWAN.
+
+    Exposes the same interface as MitgcmGrid (.lat_grid, .lon_grid, .x, .y,
+    .parameters) so it can be passed directly to weather.weather_files_to_grid().
+    """
+
+    def __init__(self):
+        self.grid_type = "regular"
+        self.x0 = 0.0
+        self.y0 = 0.0
+        self.dx = 0.0
+        self.dy = 0.0
+        self.Nx = 0
+        self.Ny = 0
+        self.rotation = 0.0
+        self.system = ""          # "CH1903", "UTM", or "WGS84"
+        self.lat_grid = None      # 2D ndarray, shape (Ny, Nx)
+        self.lon_grid = None
+        self.x = None             # 1D coordinate vector (cell centres)
+        self.y = None
+        self.parameters = {}      # must contain {"buffer": float}
+
+
+def read_delft3d_grd(grd_path):
+    """Parse a Delft3D .grd file and return grid node coordinates.
+
+    The file stores My ETA blocks of X coordinates followed by My ETA blocks
+    of Y coordinates. Each block contains Mx values for one row.
+
+    Returns:
+        X: ndarray shape (My, Mx) — X coordinates of grid nodes
+        Y: ndarray shape (My, Mx) — Y coordinates of grid nodes
+        Mx: int — number of grid nodes in M direction
+        My: int — number of grid nodes in N direction
+    """
+    with open(grd_path, 'r') as f:
+        lines = f.readlines()
+
+    Mx = My = None
+    data_start = 0
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith('*') or stripped.lower().startswith('coordinate') or stripped.lower().startswith('missing'):
+            i += 1
+            continue
+        parts = stripped.split()
+        if Mx is None and len(parts) == 2:
+            try:
+                Mx, My = int(parts[0]), int(parts[1])
+                i += 1
+                continue
+            except ValueError:
+                pass
+        if stripped == '0 0 0':
+            data_start = i + 1
+            break
+        i += 1
+
+    if Mx is None or My is None:
+        raise ValueError("Could not parse grid dimensions from {}".format(grd_path))
+
+    all_blocks = []
+    current_vals = []
+
+    for j in range(data_start, len(lines)):
+        line = lines[j]
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if 'ETA=' in line:
+            if current_vals:
+                all_blocks.append(current_vals)
+            parts = line.split()
+            eta_idx = next(k for k, p in enumerate(parts) if 'ETA=' in p)
+            current_vals = [float(v) for v in parts[eta_idx + 2:]]
+        else:
+            current_vals.extend(float(v) for v in stripped.split())
+
+    if current_vals:
+        all_blocks.append(current_vals)
+
+    if len(all_blocks) != 2 * My:
+        raise ValueError("Expected {} ETA blocks, got {} in {}".format(2 * My, len(all_blocks), grd_path))
+
+    X = np.array([block for block in all_blocks[:My]])
+    Y = np.array([block for block in all_blocks[My:]])
+    return X, Y, Mx, My
+
+
+def read_delft3d_dep(dep_path, Mx, My):
+    """Parse a Delft3D .dep depth file.
+
+    The file contains (My+1) * (Mx+1) values. The extra row/column are a
+    Delft3D convention and are stripped. Missing value marker (-999) is
+    replaced with NaN. Depths are stored as positive values (metres).
+
+    Returns:
+        ndarray shape (My, Mx) with positive water depths; NaN = land/outside.
+    """
+    with open(dep_path, 'r') as f:
+        content = f.read()
+    values = np.array([float(v) for v in content.split()])
+    expected = (My + 1) * (Mx + 1)
+    if len(values) != expected:
+        raise ValueError("Expected {} depth values, got {} in {}".format(expected, len(values), dep_path))
+    arr = values.reshape(My + 1, Mx + 1)
+    arr = arr[:My, :Mx]
+    arr[arr < -900] = np.nan
+    return arr
+
+
+def delft3d_mesh_mask(X, Y, xq, yq):
+    """Boolean mask of query points that fall inside a Delft3D mesh footprint.
+
+    X, Y are the curvilinear grid node coordinates (shape (My, Mx), zeros at
+    inactive nodes). The mesh is body-fitted to the shoreline, so the union of
+    its cells is the true lake area, including concave coastlines. Testing query
+    points against this footprint avoids two failure modes: the convex hull of
+    the nodes (griddata) floods concave bays, while a "cell contains a node"
+    test leaves holes once the query grid is finer than the node spacing.
+
+    Args:
+        X, Y: node coordinate arrays, shape (My, Mx).
+        xq, yq: query coordinates (any matching shape) in the same system.
+
+    Returns:
+        Boolean ndarray shaped like xq, True where the point is inside the lake.
+    """
+    from matplotlib.path import Path
+    valid = (X != 0) | (Y != 0)
+    # A grid cell is part of the lake when all four of its corner nodes are valid.
+    cell = valid[:-1, :-1] & valid[:-1, 1:] & valid[1:, 1:] & valid[1:, :-1]
+    ii, jj = np.nonzero(cell)
+    if ii.size == 0:
+        raise ValueError("Delft3D mesh has no valid cells to build a footprint")
+    quad = np.stack([
+        np.stack([X[ii, jj],         Y[ii, jj]],         axis=1),
+        np.stack([X[ii, jj + 1],     Y[ii, jj + 1]],     axis=1),
+        np.stack([X[ii + 1, jj + 1], Y[ii + 1, jj + 1]], axis=1),
+        np.stack([X[ii + 1, jj],     Y[ii + 1, jj]],     axis=1),
+    ], axis=1)  # (Ncell, 4, 2)
+    # One compound Path holding every cell as a closed sub-polygon; a query point
+    # has nonzero winding only when it lies inside exactly one (non-overlapping)
+    # cell, so contains_points returns True across the whole lake and False in
+    # any island holes.
+    n = quad.shape[0]
+    verts = np.concatenate([quad, quad[:, :1, :]], axis=1).reshape(-1, 2)
+    codes = np.tile([Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY], n)
+    shape = np.asarray(xq).shape
+    pts = np.column_stack([np.asarray(xq).ravel(), np.asarray(yq).ravel()])
+    return Path(verts, codes).contains_points(pts).reshape(shape)
+
+
 def modify_arguments(param_name: str, values, file_path, wrap=9):
     """
     Function to modify run-time parameters, based on variable name, with the
@@ -1227,3 +1385,78 @@ def extract_data_outputs_mitgcm(folder):
         p["timestamps"] = all_timestamps
         p["data"] = np.concatenate(all_data[p["variable"]], axis=0)
     return parameters
+
+
+def swan_wind_metadata(control_path):
+    """Read the wind start time and timestep (seconds) from a SWAN control file."""
+    with open(control_path, 'r') as f:
+        for line in f:
+            s = line.strip()
+            if s.startswith("INPGRID WIND") and "NONSTATIONARY" in s:
+                parts = s.split()
+                k = parts.index("NONSTATIONARY")
+                return datetime.strptime(parts[k + 1], "%Y%m%d.%H%M%S"), int(parts[k + 2])
+    raise ValueError("Could not find a nonstationary wind INPGRID in {}".format(control_path))
+
+
+def swan_grid_latlng(folder):
+    """Return (lat_grid, lng_grid) of the SWAN grid from an output NetCDF (north-up), or None."""
+    ncs = sorted([f for f in os.listdir(folder) if f.startswith("output") and f.endswith(".nc")])
+    if not ncs:
+        return None
+    with xr.open_dataset(os.path.join(folder, ncs[0])) as ds:
+        return ds["lat"].values[::-1, :], ds["lon"].values[::-1, :]
+
+
+def extract_data_inputs_swan(folder, slice):
+    # Grid shape from the bathymetry; wind times from the control file.
+    bathy = np.loadtxt(os.path.join(folder, "bottom.bot"))
+    ny, nx = bathy.shape
+    start, dt = swan_wind_metadata(os.path.join(folder, "control.swn"))
+
+    # wind.wnd holds, per timestep, the u-component block then the v-component
+    # block (each ny rows of nx values), written south-first; flip to north-up.
+    wind = np.loadtxt(os.path.join(folder, "wind.wnd"))
+    ntime = wind.shape[0] // (2 * ny)
+    wind = wind[:ntime * 2 * ny].reshape(ntime, 2, ny, nx)
+    u = wind[:, 0, ::-1, :]
+    v = wind[:, 1, ::-1, :]
+    speed = np.sqrt(u ** 2 + v ** 2)
+    timestamps = [start + timedelta(seconds=dt * i) for i in range(ntime)]
+
+    slice_index = False
+    if slice:
+        latlng = swan_grid_latlng(folder)
+        if latlng is None:
+            print("No SWAN output NetCDF found for slice coordinates; skipping point sampling.")
+        else:
+            lat, lng = [float(x) for x in slice.split(",")]
+            i, j, distance = closest_index_2d(lat, lng, latlng[0], latlng[1])
+            print("Extracting point data {}m from requested location".format(round(distance)))
+            slice_index = {"y": i, "x": j}
+
+    return [
+        {"file": "WindU.wnd", "timestamps": timestamps, "data": u, "slice_index": slice_index},
+        {"file": "WindV.wnd", "timestamps": timestamps, "data": v, "slice_index": slice_index},
+        {"file": "WindSpeed", "timestamps": timestamps, "data": speed, "slice_index": slice_index},
+    ]
+
+
+def extract_data_outputs_swan(folder):
+    # Output is one NetCDF per restart segment (output_<start>.nc); concatenate
+    # them in time. Land cells are already NaN. Flip to north-up for display.
+    ncs = sorted([f for f in os.listdir(folder) if f.startswith("output") and f.endswith(".nc")])
+    if not ncs:
+        raise ValueError("No SWAN output NetCDF (output*.nc) found in {}".format(folder))
+    labels = {"HS": "Sig. wave height (m)", "TM01": "Mean period (s)", "PDIR": "Direction (deg)"}
+    with xr.open_dataset(os.path.join(folder, ncs[0])) as ds0:
+        variables = list(ds0.data_vars)
+    timestamps = []
+    collected = {v: [] for v in variables}
+    for f in ncs:
+        with xr.open_dataset(os.path.join(folder, f)) as ds:
+            timestamps.extend([pd.Timestamp(t).to_pydatetime() for t in ds["time"].values])
+            for v in variables:
+                collected[v].append(ds[v].values[:, ::-1, :])
+    return [{"name": labels.get(v, v), "variable": v, "timestamps": timestamps,
+             "data": np.concatenate(collected[v], axis=0)} for v in variables]

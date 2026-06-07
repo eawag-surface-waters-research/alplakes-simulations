@@ -6,13 +6,14 @@ import subprocess
 import numpy as np
 import pandas as pd
 import xarray as xr
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, griddata
+from distutils.dir_util import copy_tree
 from datetime import datetime, timedelta
 
 import river
 import secchi
 import weather
-from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults
+from functions import logger, ch1903_to_latlng, download_file, upload_file, utm_to_latlng, get_mitgcm_grid, modify_arguments, calculate_specific_humidity, compute_longwave_radiation, overwrite_defaults, SWANGrid, read_delft3d_grd, read_delft3d_dep, delft3d_mesh_mask
 
 
 class Delft3D(object):
@@ -818,3 +819,569 @@ class mitgcm_67z(MitGCM):
         super(mitgcm_67z, self).__init__(*args, **kwargs)
         self.version = "67z"
         self.docker = "eawag/mitgcm:67z"
+
+
+class SWAN(object):
+    def __init__(self, params):
+        self.params = params
+        self.properties = {}
+        self.simulation_dir = ""
+        self.grid = None
+        self.restart_file = ""   # hotstart file the run is initialised from
+        self.hotstart = False    # True once a hotstart file has been collected
+        self._grid_source_data = {}  # raw grid data passed from load_grid to load_bathymetry
+
+        if "log" in params and params["log"]:
+            log_prefix = "{}_{}_{}".format(params["model"].replace("/", "_"), params["start"], params["end"])
+            self.log = logger(path=os.path.join(params["log"], log_prefix))
+        else:
+            self.log = logger()
+
+        if "model" in params and "docker" in params:
+            self.log.initialise("Writing input files for simulation {} using {}".format(params["model"], params["docker"]))
+
+        self.log.info("Creating input files from {} to {}".format(params["start"], params["end"] - timedelta(seconds=1)))
+
+    def process(self):
+        self.initialise_simulation_directory()
+        self.copy_static_data()
+        self.load_properties()
+        self.collect_restart_file()
+        self.load_grid()
+        self.load_bathymetry()
+        self.weather_data_files()
+        self.update_control_file()
+        if self.params["upload"]:
+            self.upload_data()
+        if self.params["run"]:
+            self.run_simulation()
+            self.convert_output()
+        return self.simulation_dir
+
+    def initialise_simulation_directory(self, remove=True):
+        try:
+            self.log.begin_stage("Initialising simulation directory.")
+            name = "{}_{}_{}_{}_{}".format(self.params["docker"], self.params["model"],
+                                        self.params["start"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d"), self.params["threads"])
+            name = name.replace("/", "_").replace(".", "").replace(":", "").replace("-", "")
+            self.simulation_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../runs", name))
+            self.log.info("Simulation directory: {}".format(self.simulation_dir), indent=1)
+            if os.path.isdir(self.simulation_dir) and remove:
+                self.log.info("Removing existing simulation directory.", indent=1)
+                shutil.rmtree(self.simulation_dir)
+            if not os.path.isdir(self.simulation_dir):
+                os.mkdir(self.simulation_dir)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def copy_static_data(self):
+        try:
+            self.log.begin_stage("Copying static data to simulation folder.")
+            parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+            self.log.info("Copying default files to simulation folder.", indent=1)
+            default = os.path.join(parent_dir, "static", self.params["model"].split("/")[0], "default")
+            files = copy_tree(default, self.simulation_dir)
+            for file in files:
+                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            self.log.info("Copying model files to simulation folder.", indent=1)
+            model = os.path.join(parent_dir, "static", self.params["model"])
+            files = copy_tree(model, self.simulation_dir)
+            for file in files:
+                self.log.info("Copied {} to simulation folder.".format(os.path.basename(file)), indent=2)
+            os.makedirs(os.path.join(self.simulation_dir, "run"), exist_ok=True)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def load_properties(self, manual=False):
+        try:
+            self.log.begin_stage("Loading properties.")
+            if manual:
+                self.properties = manual
+            else:
+                with open(os.path.join(self.simulation_dir, "properties.json"), 'r') as f:
+                    self.properties = json.load(f)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def collect_restart_file(self, region="eu-central-1"):
+        try:
+            self.log.begin_stage("Collecting hotstart file.")
+            # A run starting at date D is initialised from the hotfile a previous
+            # run wrote when it ended at D (restart_<D>.hot). Hotstart is optional:
+            # if none is found the run cold-starts with INIT DEFAULT.
+            self.restart_file = "restart_{}.hot".format(self.params["start"].strftime("%Y%m%d"))
+            dst = os.path.join(self.simulation_dir, self.restart_file)
+            components = self.params["model"].split("/")
+
+            if self.params["restart"]:
+                self.log.info("Copying hotstart file from local storage.", indent=1)
+                if not os.path.isfile(self.params["restart"]):
+                    raise ValueError("Unable to locate hotstart file: {}".format(self.params["restart"]))
+                shutil.copyfile(self.params["restart"], dst)
+                self.hotstart = True
+                self.log.info("Using hotstart {}".format(self.restart_file), indent=1)
+                self.log.end_stage()
+                return
+
+            if not self.params["bucket"]:
+                self.log.info("No bucket or local hotstart file; cold start (INIT DEFAULT).", indent=1)
+                self.log.end_stage()
+                return
+
+            self.log.info("Downloading hotstart file from remote storage.", indent=1)
+            bucket = "https://{}.s3.{}.amazonaws.com".format(self.params["bucket"], region)
+            url = os.path.join(bucket, "simulations", components[0], "restart-files", components[1], self.restart_file)
+            self.log.info("File location: {}".format(url), indent=2)
+            status_code = download_file(url, dst)
+            if status_code == 200:
+                self.hotstart = True
+                self.log.info("Successfully downloaded hotstart file.", indent=2)
+            elif status_code == 403:
+                self.log.warning("Hotstart file doesn't exist on server; cold start (INIT DEFAULT).", indent=1)
+            else:
+                raise ValueError("Unable to download hotstart file, please check your internet connection.")
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def load_grid(self):
+        try:
+            self.log.begin_stage("Loading SWAN grid.")
+            grid_props = self.properties["grid"]
+            parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
+            if "source" in grid_props:
+                source = grid_props["source"]
+                source_type = source.split("/")[0]
+                lake = source.split("/")[1]
+                source_dir = os.path.join(parent_dir, "static", source)
+                if source_type == "delft3d-flow":
+                    self._load_grid_from_delft3d(source_dir, lake, grid_props)
+                elif source_type == "mitgcm":
+                    self._load_grid_from_mitgcm(source_dir, grid_props)
+                else:
+                    raise ValueError("Unknown grid source type: {}".format(source_type))
+            else:
+                raise ValueError("No grid source provided")
+
+            self.log.info("Grid type: {}, system: {}".format(self.grid.grid_type, self.grid.system), indent=1)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def _load_grid_from_delft3d(self, source_dir, lake, grid_props):
+        grd_src = os.path.join(source_dir, "{}_grid.grd".format(lake))
+        X, Y, Mx, My = read_delft3d_grd(grd_src)
+        self.log.info("Curvilinear source: {}x{} nodes".format(Mx, My), indent=2)
+
+        # Store raw coordinates for load_bathymetry() to interpolate onto the regular grid
+        self._grid_source_data = {"X": X, "Y": Y, "Mx": Mx, "My": My, "source_dir": source_dir, "lake": lake}
+
+        system = grid_props.get("system", "CH1903")
+        valid = (X != 0) | (Y != 0)
+        x_valid = X[valid]
+        y_valid = Y[valid]
+
+        # Build a regular bounding-box computational grid; the Delft3D bathymetry
+        # is interpolated onto it in load_bathymetry().
+        resolution = float(grid_props.get("resolution", 500))
+        x0 = float(np.floor(x_valid.min() / resolution) * resolution)
+        y0 = float(np.floor(y_valid.min() / resolution) * resolution)
+        x1 = float(np.ceil(x_valid.max() / resolution) * resolution)
+        y1 = float(np.ceil(y_valid.max() / resolution) * resolution)
+        Nx = int(round((x1 - x0) / resolution))
+        Ny = int(round((y1 - y0) / resolution))
+        x_centres = x0 + resolution * (np.arange(Nx) + 0.5)
+        y_centres = y0 + resolution * (np.arange(Ny) + 0.5)
+        self.log.info("Regular grid: {}x{} cells at {}m resolution".format(Nx, Ny, int(resolution)), indent=2)
+
+        xx, yy = np.meshgrid(x_centres, y_centres)
+        if system == "CH1903":
+            lat_grid, lon_grid = ch1903_to_latlng(xx, yy)
+        elif system == "UTM":
+            zone_number = grid_props.get("zone_number", 32)
+            zone_letter = grid_props.get("zone_letter", "T")
+            lat_grid, lon_grid = utm_to_latlng(xx, yy, zone_number, zone_letter)
+        else:
+            raise ValueError("Coordinate system {} not supported for Delft3D source.".format(system))
+
+        g = SWANGrid()
+        g.grid_type = "regular"
+        g.x0 = x0
+        g.y0 = y0
+        g.dx = resolution
+        g.dy = resolution
+        g.Nx = Nx
+        g.Ny = Ny
+        g.rotation = 0.0
+        g.system = system
+        g.lat_grid = lat_grid
+        g.lon_grid = lon_grid
+        g.x = x_centres
+        g.y = y_centres
+        g.parameters = {"buffer": grid_props.get("buffer", 0.02)}
+        self.grid = g
+
+    def _load_grid_from_mitgcm(self, source_dir, grid_props):
+        mitgcm_grid = get_mitgcm_grid(os.path.join(source_dir, "grid"))
+        params = mitgcm_grid.parameters
+        res = float(params["resolution"])
+
+        g = SWANGrid()
+        g.grid_type = "regular"
+        g.Nx = int(params["Nx"])
+        g.Ny = int(params["Ny"])
+        g.dx = res
+        g.dy = res
+        g.rotation = float(params.get("rotation", 0.0))
+        g.system = grid_props.get("system", "UTM")
+        g.lat_grid = mitgcm_grid.lat_grid
+        g.lon_grid = mitgcm_grid.lon_grid
+        g.x = mitgcm_grid.x
+        g.y = mitgcm_grid.y
+        g.x0 = float(mitgcm_grid.x.min()) - res / 2.0
+        g.y0 = float(mitgcm_grid.y.min()) - res / 2.0
+        g.parameters = mitgcm_grid.parameters
+        self.log.info("Grid dimensions: {}x{} cells, {}m resolution".format(g.Nx, g.Ny, res), indent=2)
+        self.grid = g
+
+
+    def load_bathymetry(self):
+        try:
+            self.log.begin_stage("Loading bathymetry.")
+            grid_props = self.properties["grid"]
+            if "source" not in grid_props:
+                raise ValueError("Inline bathymetry not supported; specify a 'source' in properties.json grid section.")
+
+            source = grid_props["source"]
+            source_type = source.split("/")[0]
+            lake = source.split("/")[1]
+            parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+            source_dir = os.path.join(parent_dir, "static", source)
+
+            if source_type == "delft3d-flow":
+                from scipy.interpolate import griddata
+                X = self._grid_source_data["X"]
+                Y = self._grid_source_data["Y"]
+                Mx = self._grid_source_data["Mx"]
+                My = self._grid_source_data["My"]
+                dep_path = os.path.join(source_dir, "{}_depths.dep".format(lake))
+                self.log.info("Reading depths from {}".format(os.path.basename(dep_path)), indent=1)
+                bathy = read_delft3d_dep(dep_path, Mx, My)
+                valid = (X != 0) & ~np.isnan(bathy)
+                points = np.column_stack([X[valid], Y[valid]])
+                values = bathy[valid]
+                xx, yy = np.meshgrid(self.grid.x, self.grid.y)
+                # griddata(linear) returns values across the whole convex hull of
+                # the lake nodes, which for a crescent-shaped lake (e.g. Geneva)
+                # floods the concave bay with spurious "water". Mask to the actual
+                # lake using the body-fitted Delft3D mesh footprint (correct at any
+                # SWAN resolution), then fill depths from the linear field, with
+                # nearest as a fallback at the hull edge.
+                inside = delft3d_mesh_mask(X, Y, xx, yy)
+                bathy_interp = griddata(points, values, (xx, yy), method='linear')
+                bathy_near = griddata(points, values, (xx, yy), method='nearest')
+                depth = np.where(np.isnan(bathy_interp), bathy_near, bathy_interp)
+                bathy_swan = np.where(inside, depth, -999.0)
+                self.log.info("Interpolated bathymetry onto {}x{} regular grid ({} lake cells)".format(
+                    self.grid.Ny, self.grid.Nx, int(inside.sum())), indent=1)
+            elif source_type == "mitgcm":
+                bathy_bin = os.path.join(source_dir, "grid", "bathy.bin")
+                self.log.info("Reading bathymetry from bathy.bin", indent=1)
+                raw = np.fromfile(bathy_bin, dtype=">f8")
+                bathy_raw = raw.reshape((self.grid.Ny, self.grid.Nx))
+                bathy_swan = np.where(bathy_raw >= 0, 0.0, -bathy_raw)
+            else:
+                raise ValueError("Unknown source type for bathymetry: {}".format(source_type))
+
+            out_path = os.path.join(self.simulation_dir, "bottom.bot")
+            np.savetxt(out_path, bathy_swan, fmt="%.3f")
+            self.log.info("Wrote bathymetry ({} rows x {} cols) to bottom.bot".format(
+                bathy_swan.shape[0], bathy_swan.shape[1]), indent=1)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def weather_data_files(self):
+        try:
+            self.log.begin_stage("Creating weather data files.")
+            buffer = self.grid.parameters["buffer"]
+            minlat = float(np.nanmin(self.grid.lat_grid)) - buffer
+            maxlat = float(np.nanmax(self.grid.lat_grid)) + buffer
+            minlon = float(np.nanmin(self.grid.lon_grid)) - buffer
+            maxlon = float(np.nanmax(self.grid.lon_grid)) + buffer
+
+            self.log.info("Downloading wind for bbox: lat [{:.4f},{:.4f}] lon [{:.4f},{:.4f}]".format(
+                minlat, maxlat, minlon, maxlon), indent=1)
+
+            variables = ['U', 'V']
+            weather_folder = os.path.join(self.simulation_dir, "weather")
+            days = [self.params["start"] + timedelta(days=x)
+                    for x in range((min(self.params["today"], self.params["end"]) - self.params["start"]).days + 1)]
+
+            for day in days:
+                self.log.info("Downloading weather for {}.".format(day.strftime("%Y%m%d")), indent=2)
+                if day >= datetime(2024, 7, 30):
+                    weather.download_meteolakes_icon_area(minlat, minlon, maxlat, maxlon, day, variables,
+                                                          self.params["api"], self.params["today"], download=weather_folder)
+                else:
+                    weather.download_meteolakes_cosmo_area(minlat, minlon, maxlat, maxlon, day, variables,
+                                                           self.params["api"], self.params["today"], download=weather_folder)
+
+            self.log.info("Interpolating U wind to SWAN grid.", indent=1)
+            u_data = weather.weather_files_to_grid(weather_folder, 'U', self.params["start"], self.params["end"], self.grid, 1, False)
+
+            self.log.info("Interpolating V wind to SWAN grid.", indent=1)
+            v_data = weather.weather_files_to_grid(weather_folder, 'V', self.params["start"], self.params["end"], self.grid, 1, False)
+
+            self.log.info("Writing vector wind field to wind.wnd.", indent=1)
+            weather.write_swan_wind(os.path.join(self.simulation_dir, "wind.wnd"), u_data, v_data)
+
+            shutil.rmtree(weather_folder)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def update_control_file(self):
+        try:
+            self.log.begin_stage("Updating SWAN control file.")
+            template_path = os.path.join(self.simulation_dir, "control.swn")
+            with open(template_path, 'r') as f:
+                template = f.read()
+
+            sp = self.properties["spectral"]
+            ph = self.properties["physics"]
+            op = self.properties["output"]
+            ts = int(self.properties["timestep"])
+            lake_name = self.params["model"].split("/")[1]
+
+            start_str = self.params["start"].strftime("%Y%m%d.%H%M%S")
+            end_str = self.params["end"].strftime("%Y%m%d.%H%M%S")
+
+            # Wind files are always hourly (weather_files_to_grid uses freq="h")
+            wind_dt = 3600
+
+            mxc = self.grid.Nx - 1
+            myc = self.grid.Ny - 1
+            xlenc = mxc * self.grid.dx
+            ylenc = myc * self.grid.dy
+            cgrid_block = (
+                "CGRID REGULAR {x0} {y0} {alpha} {xlenc} {ylenc} {mxc} {myc} CIRCLE {mdc} {flow} {fhigh} {msc}\n"
+                "INPGRID BOTTOM REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} EXC -999\n"
+                "READINP BOTTOM 1 'bottom.bot' 3 0 FREE"
+            ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
+                     xlenc=xlenc, ylenc=ylenc, mxc=mxc, myc=myc,
+                     dx=self.grid.dx, dy=self.grid.dy,
+                     mdc=sp["mdc"], flow=sp["flow"], fhigh=sp["fhigh"], msc=sp["msc"])
+            # WIND is a vector quantity: a single READINP WIND reads the x- then
+            # y-component block per timestep from one file (wind.wnd).
+            wind_inpgrid = (
+                "INPGRID WIND REGULAR {x0} {y0} {alpha} {mxc} {myc} {dx} {dy} NONSTATIONARY {tbegin} {dt} SEC {tend}\n"
+                "READINP WIND 1 'wind.wnd' 3 0 FREE"
+            ).format(x0=self.grid.x0, y0=self.grid.y0, alpha=self.grid.rotation,
+                     mxc=mxc, myc=myc, dx=self.grid.dx, dy=self.grid.dy,
+                     tbegin=start_str, dt=wind_dt, tend=end_str)
+
+            breaking_line = ""
+            if ph.get("breaking", True):
+                breaking_line = "BREAKING CONSTANT {alpha} {gamma}".format(
+                    alpha=ph["alpha"], gamma=ph["gamma"])
+
+            # Initial condition: hotstart from a collected restart file, else cold.
+            # UNFORMATTED must match how HOTFILE wrote it (binary).
+            if self.hotstart:
+                init_line = "INITIAL HOTSTART '{}' UNFORMATTED".format(self.restart_file)
+            else:
+                init_line = "INIT DEFAULT"
+
+            # SWAN writes a hotfile only at the end of a COMPUTE, so to emit
+            # restart files at a fixed interval the run is split into segments
+            # (consecutive COMPUTE commands continue from the previous state).
+            # restart_interval is in days; absent -> single COMPUTE, no hotfile.
+            restart_interval = self.properties.get("restart_interval")
+            if restart_interval:
+                lines = []
+                step = timedelta(days=float(restart_interval))
+                t0 = self.params["start"]
+                while t0 < self.params["end"]:
+                    t1 = min(t0 + step, self.params["end"])
+                    lines.append("COMPUTE NONSTAT {} {} SEC {}".format(
+                        t0.strftime("%Y%m%d.%H%M%S"), ts, t1.strftime("%Y%m%d.%H%M%S")))
+                    lines.append("HOTFILE 'restart_{}.hot' UNFORMATTED".format(t1.strftime("%Y%m%d")))
+                    t0 = t1
+                compute_block = "\n".join(lines)
+                self.log.info("Restart interval {} day(s): {} compute segment(s).".format(
+                    restart_interval, len(lines) // 2), indent=1)
+            else:
+                compute_block = "COMPUTE NONSTAT {} {} SEC {}".format(start_str, ts, end_str)
+
+            replacements = {
+                "!project_name!": lake_name,
+                "!cgrid_block!": cgrid_block,
+                "!wind_inpgrid!": wind_inpgrid,
+                "!gen!": "{} AGROW".format(ph["gen"]),
+                "!whitecap!": "WCAPPING {}".format(ph["whitecap"]),
+                "!friction!": "FRICTION {} {}".format(ph["fric"], ph["fric_coef"]),
+                "!breaking!": breaking_line,
+                "!init!": init_line,
+                "!compute_block!": compute_block,
+                "!start!": start_str,
+                "!output_vars!": " ".join(op["variables"]),
+                "!output_dt!": str(int(op.get("frequency", ts))),
+            }
+
+            for key, value in replacements.items():
+                template = template.replace(key, value)
+
+            with open(template_path, 'w') as f:
+                f.write(template)
+
+            self.log.info("Written control file for {} ({} grid).".format(lake_name, self.grid.grid_type), indent=1)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def upload_data(self):
+        try:
+            self.log.begin_stage("Uploading simulation inputs to S3 bucket.")
+            self.log.info("Zipping simulation folder.", indent=1)
+            zipfile = self.simulation_dir + ".zip"
+            if os.path.isfile(zipfile):
+                self.log.info("Removing existing zip file.", indent=2)
+                os.remove(zipfile)
+            shutil.make_archive(self.simulation_dir, 'zip', self.simulation_dir)
+            self.log.info("Uploading file to bucket.", indent=1)
+            upload_path = os.path.join("simulations",
+                                       self.params["model"].split("/")[0],
+                                       "simulation-files",
+                                       os.path.basename(zipfile))
+            upload_file(zipfile, self.params["bucket"], object_name=upload_path)
+            self.log.info("Removing zip file.", indent=1)
+            os.remove(zipfile)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def run_simulation(self):
+        try:
+            self.log.begin_stage("Running simulation.")
+            self.log.info("Running SWAN simulation as a subprocess.", indent=1)
+            threads = int(self.params["threads"])
+            print(" ".join(["docker", "run", "--rm",
+                   "-v", "{}:/home/swan".format(self.simulation_dir),
+                   self.docker, "swanrun", "-input", "control"]))
+            cmd = ["docker", "run", "--rm",
+                   "-v", "{}:/home/swan".format(self.simulation_dir),
+                   self.docker, "swanrun", "-input", "control"]
+            if threads > 1:
+                self.log.info("Using {} OpenMP threads.".format(threads), indent=1)
+                cmd += ["-omp", str(threads)]
+            process = subprocess.Popen(cmd,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,
+                                       universal_newlines=True,
+                                       cwd=self.simulation_dir)
+            error = self.log.subprocess(process, error="SWAN abnormal termination")
+            if process.returncode != 0:
+                output, error = process.communicate()
+                raise RuntimeError("Subprocess failed with the following error: {}".format(error))
+            elif error:
+                raise RuntimeError("Simulation failed check the logs for more information.")
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+    def convert_output(self):
+        try:
+            self.log.begin_stage("Converting SWAN output to NetCDF.")
+            block_path = os.path.join(self.simulation_dir, "swan_block.dat")
+            if not os.path.isfile(block_path):
+                raise ValueError("SWAN block output 'swan_block.dat' not found; the run may not have completed.")
+
+            variables = self.properties["output"]["variables"]
+            nvar = len(variables)
+            Ny, Nx = self.grid.Ny, self.grid.Nx
+
+            with open(block_path) as f:
+                values = np.array(f.read().split(), dtype=float)
+
+            block = Ny * Nx * nvar
+            if values.size % block != 0:
+                raise ValueError(
+                    "SWAN block output has {} values, not divisible by Ny*Nx*nvar ({}); "
+                    "vector output quantities are not supported.".format(values.size, block))
+            nt = values.size // block
+
+            # LAY-OUT 3 writes each field row-by-row in the same (south-first)
+            # orientation as the input grids, so it maps straight onto lat_grid.
+            data = values.reshape(nt, nvar, Ny, Nx)
+
+            # SWAN flags inactive/land points with an exception value: -9 for most
+            # quantities and -999 for directions. Replace both with NaN.
+            data = np.where(np.isclose(data, -9.0) | np.isclose(data, -999.0), np.nan, data)
+
+            freq = int(self.properties["output"].get("frequency", int(self.properties["timestep"])))
+            times = [self.params["start"] + timedelta(seconds=freq * k) for k in range(nt)]
+
+            def write_netcdf(sel, filename):
+                ds = xr.Dataset(
+                    data_vars={name: (("time", "eta", "xi"), data[sel, i, :, :])
+                               for i, name in enumerate(variables)},
+                    coords={
+                        "time": ("time", np.array([times[k] for k in sel], dtype="datetime64[ns]")),
+                        "lat": (("eta", "xi"), self.grid.lat_grid),
+                        "lon": (("eta", "xi"), self.grid.lon_grid),
+                    },
+                    attrs={
+                        "source": "SWAN {}".format(getattr(self, "version", "")),
+                        "lake": self.params["model"].split("/")[1],
+                    },
+                )
+                ds.to_netcdf(os.path.join(self.simulation_dir, filename))
+                self.log.info("Wrote {} timesteps to {}".format(len(sel), filename), indent=1)
+
+            # Split the output to match the hotfile/restart segments, named by
+            # the segment start date; otherwise write a single output.nc.
+            restart_interval = self.properties.get("restart_interval")
+            if restart_interval:
+                step = timedelta(days=float(restart_interval))
+                seg_starts = []
+                t0 = self.params["start"]
+                while t0 < self.params["end"]:
+                    seg_starts.append(t0)
+                    t0 = min(t0 + step, self.params["end"])
+                for s, seg_start in enumerate(seg_starts):
+                    seg_end = seg_starts[s + 1] if s + 1 < len(seg_starts) else self.params["end"]
+                    last = s + 1 == len(seg_starts)
+                    sel = [k for k, t in enumerate(times)
+                           if seg_start <= t < seg_end or (last and t == seg_end)]
+                    if sel:
+                        write_netcdf(sel, "output_{}.nc".format(seg_start.strftime("%Y%m%d")))
+            else:
+                write_netcdf(list(range(nt)), "output.nc")
+
+            os.remove(block_path)
+            self.log.end_stage()
+        except Exception as e:
+            self.log.error()
+            raise
+
+
+class swan_4151(SWAN):
+    def __init__(self, *args, **kwargs):
+        super(swan_4151, self).__init__(*args, **kwargs)
+        self.version = "41.51"
+        self.docker = "delftwaves/swan:v41.51"
