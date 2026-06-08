@@ -861,8 +861,8 @@ class SWAN(object):
     def initialise_simulation_directory(self, remove=True):
         try:
             self.log.begin_stage("Initialising simulation directory.")
-            name = "{}_{}_{}_{}_{}".format(self.params["docker"], self.params["model"],
-                                        self.params["start"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d"), self.params["threads"])
+            name = "{}_{}_{}_{}".format(self.params["docker"], self.params["model"],
+                                        self.params["start"].strftime("%Y%m%d"), self.params["end"].strftime("%Y%m%d"))
             name = name.replace("/", "_").replace(".", "").replace(":", "").replace("-", "")
             self.simulation_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../runs", name))
             self.log.info("Simulation directory: {}".format(self.simulation_dir), indent=1)
