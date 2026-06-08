@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import netCDF4
 import pylake
@@ -256,6 +257,106 @@ def process_output_mitgcm(folder, skip, origin=datetime(2008, 6, 1), nodata=-999
                 file.writelines(lines)
 
 
+def process_output_swan(folder, docker, skip=False):
+    import models
+    print("Converting SWAN block output to NetCDF")
+    with open(os.path.join(folder, "properties.json")) as f:
+        properties = json.load(f)
+
+    tokens = os.path.basename(os.path.normpath(folder)).split("_")
+    start = datetime.strptime(tokens[-2], "%Y%m%d")
+    end = datetime.strptime(tokens[-1], "%Y%m%d")
+
+    lake = properties["grid"]["source"].split("/")[1]
+    version = docker.split(":")[-1].lstrip("v")
+
+    model = models.SWAN({"model": "swan/{}".format(lake), "docker": docker, "start": start, "end": end})
+    model.simulation_dir = folder
+    model.properties = properties
+    model.load_grid()
+    grid = model.grid
+
+    variables = properties["output"]["variables"]
+    nvar = len(variables)
+    Ny, Nx = grid.Ny, grid.Nx
+    frequency = int(properties["output"].get("frequency", int(properties["timestep"])))
+
+    block_path = os.path.join(folder, "swan_block.dat")
+    if not os.path.isfile(block_path):
+        raise ValueError("SWAN block output 'swan_block.dat' not found; the run may not have completed.")
+
+    with open(block_path) as f:
+        values = np.array(f.read().split(), dtype=float)
+
+    block = Ny * Nx * nvar
+    if values.size % block != 0:
+        raise ValueError(
+            "SWAN block output has {} values, not divisible by Ny*Nx*nvar ({}); "
+            "vector output quantities are not supported.".format(values.size, block))
+    nt = values.size // block
+
+    data = values.reshape(nt, nvar, Ny, Nx)
+
+    data = np.where(np.isclose(data, -9.0) | np.isclose(data, -999.0), np.nan, data)
+
+    times = [start + timedelta(seconds=frequency * k) for k in range(nt)]
+
+    output_folder = os.path.join(folder, "postprocess")
+    os.makedirs(output_folder, exist_ok=True)
+
+    def write_netcdf(sel, filename):
+        ds = xr.Dataset(
+            data_vars={name: (("time", "eta", "xi"), data[sel, i, :, :])
+                       for i, name in enumerate(variables)},
+            coords={
+                "time": ("time", np.array([times[k] for k in sel], dtype="datetime64[ns]")),
+                "lat": (("eta", "xi"), grid.lat_grid),
+                "lon": (("eta", "xi"), grid.lon_grid),
+            },
+            attrs={
+                "source": "SWAN {}".format(version),
+                "lake": lake,
+            },
+        )
+        ds.to_netcdf(os.path.join(output_folder, filename))
+        print("Wrote {} timesteps to {}".format(len(sel), filename))
+
+    restart_interval = properties.get("restart_interval")
+    if restart_interval:
+        step = timedelta(days=float(restart_interval))
+        seg_starts = []
+        t0 = start
+        while t0 < end:
+            seg_starts.append(t0)
+            t0 = min(t0 + step, end)
+        for s, seg_start in enumerate(seg_starts):
+            if skip and seg_start < datetime.strptime(skip, "%Y%m%d"):
+                print("Skipping {}".format(seg_start.strftime("%Y%m%d")))
+                continue
+            seg_end = seg_starts[s + 1] if s + 1 < len(seg_starts) else end
+            last = s + 1 == len(seg_starts)
+            sel = [k for k, t in enumerate(times)
+                   if seg_start <= t < seg_end or (last and t == seg_end)]
+            if sel:
+                write_netcdf(sel, "{}.nc".format(seg_start.strftime("%Y%m%d")))
+    elif not (skip and start < datetime.strptime(skip, "%Y%m%d")):
+        write_netcdf(list(range(nt)), "{}.nc".format(start.strftime("%Y%m%d")))
+
+    os.remove(block_path)
+
+    if restart_interval:
+        valid = set()
+        step = timedelta(days=float(restart_interval))
+        t = start + step
+        while t <= end:
+            valid.add(t.strftime("%Y%m%d"))
+            t += step
+        for f in os.listdir(folder):
+            if f.startswith("restart_") and f.endswith(".hot") and f[len("restart_"):-len(".hot")] not in valid:
+                print("Removing restart file not on interval boundary: {}".format(f))
+                os.remove(os.path.join(folder, f))
+
+
 def main(folder, docker, skip=False):
     if docker in ["eawag/delft3d-flow:6.03.00.62434", "eawag/delft3d-flow:6.02.10.142612"]:
         verify_simulation_delft3d_flow(folder)
@@ -263,6 +364,8 @@ def main(folder, docker, skip=False):
         calculate_variables_delft3d_flow(folder)
     elif "mitgcm" in docker:
         process_output_mitgcm(folder, skip)
+    elif "swan" in docker:
+        process_output_swan(folder, docker, skip)
     else:
         raise ValueError("Postprocessing not defined for docker image {}".format(docker))
 

@@ -1,6 +1,6 @@
 # Alplakes Simulations
 
-Python framework for setting up, running, and post-processing 3D hydrodynamic simulations of Alpine lakes using Delft3D Flow and MITgcm, simulations are run using Docker.
+Python framework for setting up, running, and post-processing hydrodynamic and wave simulations of Alpine lakes using Delft3D Flow, MITgcm and SWAN, simulations are run using Docker.
 
 > **Note:** Meteorological and river discharge data are sourced from Eawag-internal APIs. Eawag users must be connected to the Eawag intranet. External users will need to modify the relevant functions in [src/weather.py](src/weather.py) and [src/river.py](src/river.py) to connect to their own data sources.
 
@@ -20,6 +20,7 @@ pip install -r requirements.txt
 | `eawag/delft3d-flow:6.02.10.142612` | Delft3D Flow 6.02 |
 | `eawag/delft3d-flow:6.03.00.62434` | Delft3D Flow 6.03 |
 | `eawag/mitgcm:67z` | MITgcm 67z |
+| `delftwaves/swan:v41.51` | SWAN 41.51 (waves) |
 
 ## Usage
 
@@ -70,9 +71,18 @@ docker run \
   eawag/mitgcm:67z_{{ lake }}
 ```
 
+**SWAN** — navigate to the generated run folder and execute:
+
+```bash
+cd {{ run folder }}
+docker run --rm -v $(pwd):/home/swan delftwaves/swan:v41.51 swanrun -input control
+```
+
+The run produces a raw `swan_block.dat` block output, which is converted to NetCDF by the post-processing step.
+
 ### Post-processing — `src/postprocess.py`
 
-Verifies results, splits output into weekly NetCDF files, and computes derived variables (e.g. thermocline).
+For Delft3D Flow and MITgcm, verifies results, splits output into weekly NetCDF files, and computes derived variables (e.g. thermocline). For SWAN, converts the raw `swan_block.dat` block output into per-segment NetCDF files. Output is written to a `postprocess/` subfolder named by date.
 
 ```bash
 python src/postprocess.py -f {{ run folder }} -d eawag/delft3d-flow:6.02.10.142612
