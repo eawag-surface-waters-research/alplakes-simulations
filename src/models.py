@@ -1336,6 +1336,9 @@ class SWAN(object):
             freq = int(self.properties["output"].get("frequency", int(self.properties["timestep"])))
             times = [self.params["start"] + timedelta(seconds=freq * k) for k in range(nt)]
 
+            postprocess_dir = os.path.join(self.simulation_dir, "postprocess")
+            os.makedirs(postprocess_dir, exist_ok=True)
+
             def write_netcdf(sel, filename):
                 ds = xr.Dataset(
                     data_vars={name: (("time", "eta", "xi"), data[sel, i, :, :])
@@ -1350,7 +1353,7 @@ class SWAN(object):
                         "lake": self.params["model"].split("/")[1],
                     },
                 )
-                ds.to_netcdf(os.path.join(self.simulation_dir, filename))
+                ds.to_netcdf(os.path.join(postprocess_dir, filename))
                 self.log.info("Wrote {} timesteps to {}".format(len(sel), filename), indent=1)
 
             # Split the output to match the hotfile/restart segments, named by
@@ -1369,9 +1372,9 @@ class SWAN(object):
                     sel = [k for k, t in enumerate(times)
                            if seg_start <= t < seg_end or (last and t == seg_end)]
                     if sel:
-                        write_netcdf(sel, "output_{}.nc".format(seg_start.strftime("%Y%m%d")))
+                        write_netcdf(sel, "{}.nc".format(seg_start.strftime("%Y%m%d")))
             else:
-                write_netcdf(list(range(nt)), "output.nc")
+                write_netcdf(list(range(nt)), "{}.nc".format(self.params["start"].strftime("%Y%m%d")))
 
             os.remove(block_path)
             self.log.end_stage()

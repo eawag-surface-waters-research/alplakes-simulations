@@ -158,10 +158,24 @@ def metrics(model, obs, circular=False):
     return {"N": n, "bias": bias, "rmse": rmse, "mae": mae, "si": si, "r": r}
 
 
-def compare(obs_df, model_df):
-    """Pair model and observations on the model timestamps; return metrics + paired frame."""
+def compare(obs_df, model_df, min_hs=0.0):
+    """Pair model and observations on the model timestamps; return metrics + paired frame.
+
+    min_hs screens out calm periods (observed Hs < min_hs) from the period and
+    direction metrics, where those quantities are physically ill-defined. Hs
+    itself is always scored over the full range. Screened samples are flagged in
+    paired["calm"] so the plot can grey them out.
+    """
+    # Observed Hs on the model timestamps, used as the calm-period screen.
+    hs_obs = None
+    if min_hs > 0 and "Wave Height (m)" in obs_df.columns:
+        hs_obs = interp_to_times(obs_df.index.values, obs_df["Wave Height (m)"].values,
+                                 model_df.index.values, circular=False)
+    calm = (hs_obs < min_hs) if hs_obs is not None else np.zeros(len(model_df), dtype=bool)
+
     rows = []
     paired = pd.DataFrame(index=model_df.index)
+    paired["calm"] = calm
     for obs_col, mvar, _, circular in VARIABLES:
         if obs_col not in obs_df.columns or mvar not in model_df.columns:
             continue
@@ -169,7 +183,13 @@ def compare(obs_df, model_df):
                                        model_df.index.values, circular=circular)
         paired["{}_model".format(mvar)] = model_df[mvar].values
         paired["{}_obs".format(mvar)] = obs_on_model
-        m = metrics(model_df[mvar].values, obs_on_model, circular=circular)
+        # Drop calm samples from period/direction only; keep all Hs.
+        mvals = np.asarray(model_df[mvar].values, dtype=float)
+        ovals = np.asarray(obs_on_model, dtype=float)
+        if mvar != "HS" and calm.any():
+            mvals = np.where(calm, np.nan, mvals)
+            ovals = np.where(calm, np.nan, ovals)
+        m = metrics(mvals, ovals, circular=circular)
         m.update({"variable": mvar, "obs_column": obs_col, "circular": circular})
         rows.append(m)
     metrics_df = pd.DataFrame(rows).set_index("variable")
@@ -201,8 +221,16 @@ def plot_performance(obs_df, model_df, paired, metrics_df, info, out_png):
         if row == 0:
             ts_ax.legend(loc="upper right", fontsize=8)
 
-        # Scatter: model vs observed (paired on model times)
-        sc_ax.plot(ob, mo, ".", ms=4, color="tab:blue", alpha=0.6)
+        # Scatter: model vs observed (paired on model times). For period and
+        # direction, calm samples excluded from the metrics are greyed out.
+        calm = paired["calm"].values if "calm" in paired.columns else np.zeros(len(mo), dtype=bool)
+        screen = calm & (mvar != "HS")
+        if screen.any():
+            sc_ax.plot(ob[screen], mo[screen], ".", ms=3, color="0.8", alpha=0.6,
+                       label="calm (excluded)")
+        sc_ax.plot(ob[~screen], mo[~screen], ".", ms=4, color="tab:blue", alpha=0.6)
+        if screen.any() and row == 0:
+            sc_ax.legend(loc="lower right", fontsize=7)
         finite = np.isfinite(mo) & np.isfinite(ob)
         if finite.any():
             lo = float(np.nanmin([ob[finite].min(), mo[finite].min()]))
@@ -226,6 +254,8 @@ def plot_performance(obs_df, model_df, paired, metrics_df, info, out_png):
 
     title = ("{label}  |  cell ({eta},{xi}) at {clat:.4f},{clon:.4f}  "
              "(buoy {blat:.4f},{blon:.4f}, {dkm:.2f} km)").format(**info)
+    if info.get("min_hs", 0) > 0:
+        title += "  |  period/dir: H$_s$>{:.2f} m".format(info["min_hs"])
     fig.suptitle(title, fontsize=11)
     fig.tight_layout(rect=[0, 0, 1, 0.98])
     fig.savefig(out_png, dpi=150)
@@ -250,6 +280,9 @@ def main():
     parser.add_argument("--dir-convention", choices=list(DIR_CONVENTIONS), default="nautical-from",
                         help="Direction convention the buoy reports; the model PDIR is converted "
                              "to match it (default: nautical-from = coming-from, CW from North).")
+    parser.add_argument("--min-hs", type=float, default=0.0,
+                        help="Exclude calm samples (observed Hs < MIN_HS, m) from the period and "
+                             "direction metrics, where those are ill-defined (default: 0 = no filter).")
     parser.add_argument("--output", "-o", default=None,
                         help="Output directory for the figure and metrics CSV (default: CSV's folder).")
     args = parser.parse_args()
@@ -273,9 +306,13 @@ def main():
         eta, xi, clat, clon, dkm))
 
     model_df = model_series_at_cell(ds, eta, xi, dir_convention=args.dir_convention)
-    metrics_df, paired = compare(obs_df, model_df)
+    metrics_df, paired = compare(obs_df, model_df, min_hs=args.min_hs)
     print("\nModel PDIR converted from SWAN Cartesian (travelling-to) to buoy "
           "convention '{}'.".format(args.dir_convention))
+    if args.min_hs > 0:
+        n_calm = int(paired["calm"].sum())
+        print("Calm screen: period & direction metrics exclude {} samples with "
+              "observed Hs < {:.2f} m.".format(n_calm, args.min_hs))
     print("\nPerformance metrics:")
     print(metrics_df.to_string(float_format=lambda v: "{:.3f}".format(v)))
 
@@ -292,7 +329,7 @@ def main():
     out_csv = os.path.join(out_dir, "performance_{}.csv".format(tag))
 
     info = {"label": label, "eta": eta, "xi": xi, "clat": clat, "clon": clon,
-            "blat": args.lat, "blon": args.lon, "dkm": dkm}
+            "blat": args.lat, "blon": args.lon, "dkm": dkm, "min_hs": args.min_hs}
     plot_performance(obs_df, model_df, paired, metrics_df, info, out_png)
     metrics_df.to_csv(out_csv)
     print("Saved metrics: {}".format(out_csv))
