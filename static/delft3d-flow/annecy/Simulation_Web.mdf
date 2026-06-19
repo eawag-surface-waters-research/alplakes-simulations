@@ -83,8 +83,8 @@ Tzone  = 0
 Sub1   = # TW #
 Sub2   = #   #
 
-Wnsvwp = #N#
-Wndint = #N#
+Wnsvwp = #Y#
+Wndint = #Y#
 
 Filwp  = #Pressure.amp#
 Filscc= #Secchi.scc#
@@ -96,7 +96,7 @@ Filwr  = #RelativeHumidity.amr#
 Filwc  = #CloudCoverage.amc#
 
 
-Temint = #N#
+Temint = #Y#
 Restid =  #Simulation_Web_rst.000000#
 Zeta0  =   0.0000000e+00
 Commnt =                  

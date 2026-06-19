@@ -101,7 +101,7 @@ Filwr  = #RelativeHumidity.amr#
 Filwc  = #CloudCoverage.amc#
 
 
-Temint = #N#
+Temint = #Y#
 Restid =  #Simulation_Web_rst.000000#
 Zeta0  =   0.0000000e+00
 Commnt =                  
