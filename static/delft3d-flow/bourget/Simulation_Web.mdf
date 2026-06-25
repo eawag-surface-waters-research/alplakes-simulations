@@ -88,8 +88,8 @@ Tzone  = 0
 Sub1   = # TW #
 Sub2   = #   #
 
-Wnsvwp = #N#
-Wndint = #N#
+Wnsvwp = #Y#
+Wndint = #Y#
 
 Filwp  = #Pressure.amp#
 Filscc= #Secchi.scc#
