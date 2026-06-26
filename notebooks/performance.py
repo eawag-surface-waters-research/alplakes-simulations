@@ -71,11 +71,22 @@ def read_buoy(csv_path):
 
 
 def load_model_dataset(sim_dir):
-    """Open and time-concatenate the SWAN output_*.nc files in a run directory."""
-    files = sorted(glob.glob(os.path.join(sim_dir, "output_*.nc")))
-    if not files:
-        single = os.path.join(sim_dir, "output.nc")
-        files = [single] if os.path.isfile(single) else []
+    """Open and time-concatenate the SWAN output NetCDFs in a run directory.
+
+    Postprocessing writes weekly NetCDFs named by date (YYYYMMDD.nc) into a
+    `postprocess/` subfolder; older runs kept `output_*.nc`/`output.nc` in the
+    run root. Search both so this works regardless of layout.
+    """
+    candidates = [
+        os.path.join(sim_dir, "postprocess", "[0-9]" * 8 + ".nc"),
+        os.path.join(sim_dir, "output_*.nc"),
+        os.path.join(sim_dir, "output.nc"),
+    ]
+    files = []
+    for pattern in candidates:
+        files = sorted(glob.glob(pattern))
+        if files:
+            break
     if not files:
         raise FileNotFoundError("No output NetCDF found in {}".format(sim_dir))
     parts = [xr.open_dataset(f) for f in files]
