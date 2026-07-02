@@ -10,7 +10,7 @@ MNKmax = 117 194 60
 
 Zmodel = #Y#
 Zbot   = -70.0
-Ztop   = 0.0
+Ztop   = +1
 
 Thick  =    7.4812916e+00
             6.9271218e+00
@@ -77,7 +77,7 @@ Itdate = #2008-03-01#
 Tunit  = #M#
 Tstart =   0.0000000e+00
 Tstop  =   5.2416000e+05
-Dt     = 1
+Dt     = 0.5
 Tzone  = 0
 
 Sub1   = # TW #
