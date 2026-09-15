@@ -20,7 +20,7 @@
     "alpha": 1.0,
     "gamma": 0.73
   },
-  "timestep": 1800,
+  "timestep": 900,
   "restart_interval": 7,
   "output": {
     "variables": ["HS", "PDIR", "TM01"],
