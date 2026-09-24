@@ -12,6 +12,20 @@ from scipy.cluster.vq import kmeans, vq
 from functions import get_closest_index, convert_from_unit
 
 
+def fill_invalid_coordinates(x, y):
+    # Fill inactive cells from nearest valid neighbour (pcolormesh/contour require finite coordinates)
+    invalid = (x == 0) | (y == 0) | (x == -999) | (y == -999) | ~np.isfinite(x) | ~np.isfinite(y)
+    indices = scipy.ndimage.distance_transform_edt(invalid, return_distances=False, return_indices=True)
+    return x[tuple(indices)], y[tuple(indices)]
+
+
+def get_plot_coordinates(nc):
+    # Cell centres (for contour) and cell corners (for pcolormesh), cell [m, n] is bounded by corners [m-1:m+1, n-1:n+1]
+    x, y = fill_invalid_coordinates(np.array(nc.variables["XZ"][:], dtype=float), np.array(nc.variables["YZ"][:], dtype=float))
+    xc, yc = fill_invalid_coordinates(np.array(nc.variables["XCOR"][:], dtype=float), np.array(nc.variables["YCOR"][:], dtype=float))
+    return x, y, xc, yc
+
+
 def upwelling(folder, parameters):
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".nc")]
     files.sort()
@@ -20,6 +34,7 @@ def upwelling(folder, parameters):
     for file in files:
         with netCDF4.Dataset(file) as nc:
             depth_index = get_closest_index(parameters["depth"], np.array(nc.variables["ZK_LYR"][:]) * -1)
+            x, y, xc, yc = get_plot_coordinates(nc)
             time = [convert_from_unit(t, nc.variables["time"].units).replace(tzinfo=timezone.utc) for t in nc.variables["time"][:]]
             for time_index in range(len(time)):
                 values = np.array(nc.variables["R1"][time_index, 0, depth_index, :]).flatten()
@@ -63,8 +78,9 @@ def upwelling(folder, parameters):
                         cluster_labels, _ = vq(data, centroids)
                         plot_values = np.array(nc.variables["R1"][time_index, 0, depth_index, :])
                         plot_values[plot_values == -999] = np.nan
-                        plt.imshow(plot_values, cmap='seismic')
-                        plt.colorbar(label="Temperature (°C)")
+                        plt.pcolormesh(xc, yc, plot_values[1:, 1:], cmap='seismic', shading='flat')
+                        plt.gca().set_aspect('equal')
+                        plt.colorbar(label="Temperature (°C)", shrink=0.6)
                         plt.title("Upwelling {}".format(time[time_index]))
                         plt.xlabel("Centroid difference: {}°C".format(round(diff, 1)))
                         plt.tight_layout()
@@ -72,7 +88,7 @@ def upwelling(folder, parameters):
                         out[:] = np.nan
                         out[mask] = cluster_labels
                         out = out.reshape(plot_values.shape)
-                        plt.contour(list(range(out.shape[1])), list(range(out.shape[0])), out, levels=[0, 1], colors='k',
+                        plt.contour(x, y, out, levels=[0, 1], colors='k',
                                     linewidths=1, linestyles='dashed')
                         os.makedirs(os.path.join(folder, "events"), exist_ok=True)
                         plt.savefig(os.path.join(folder, "events/upwelling_{}".format(time[time_index].isoformat())), bbox_inches='tight')
@@ -97,6 +113,7 @@ def localised_currents(folder, parameters):
     for file in files:
         with netCDF4.Dataset(file) as nc:
             depth_index = get_closest_index(parameters["depth"], np.array(nc.variables["ZK_LYR"][:]) * -1)
+            x, y, xc, yc = get_plot_coordinates(nc)
             time = [convert_from_unit(t, nc.variables["time"].units).replace(tzinfo=timezone.utc) for t in nc.variables["time"][:]]
             area = np.count_nonzero(np.array(nc.variables["U1"][0, depth_index, :]) != -999)
             minCells = int(area * (parameters["min_area"] / parameters["total_area"]))
@@ -148,11 +165,12 @@ def localised_currents(folder, parameters):
                             data[data == i + 1] = 1
                         else:
                             data[data == i + 1] = 0
-                    plt.imshow(raw_values, cmap='viridis', interpolation='nearest')
-                    plt.colorbar(label="Velocity (m/s)")
+                    plt.pcolormesh(xc, yc, raw_values[1:, 1:], cmap='viridis', shading='flat')
+                    plt.gca().set_aspect('equal')
+                    plt.colorbar(label="Velocity (m/s)", shrink=0.6)
                     plt.title("Localised currents {}".format(time[time_index]))
                     plt.tight_layout()
-                    plt.contour(list(range(data.shape[1])), list(range(data.shape[0])), data, levels=[0, 1], colors='r',
+                    plt.contour(x, y, data, levels=[0, 1], colors='r',
                                 linewidths=1, linestyles='dashed')
                     os.makedirs(os.path.join(folder, "events"), exist_ok=True)
                     plt.savefig(os.path.join(folder, "events/localisedCurrents_{}".format(time[time_index].isoformat())), bbox_inches='tight')
