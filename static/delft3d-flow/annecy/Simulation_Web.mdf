@@ -6,7 +6,7 @@ Anglat =   4.5800000e+01
 Grdang =   0.0000000e+00
 Filgrd = #annecy_grid_enclosure.enc#
 Fildep = #annecy_depths.dep#
-MNKmax = 117 194 60
+MNKmax = 114 194 60
 
 Zmodel = #Y#
 Zbot   = -70.0
